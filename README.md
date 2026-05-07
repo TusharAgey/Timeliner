@@ -99,3 +99,7 @@ _Project summary modal with live metrics and timeline view_
 - If the File System Access API is unavailable, the app shows a helpful Chromium-browser requirement message.
 - Data is stored only on the local machine. There is no backend, auth, or cloud sync.
 - Autosave is debounced and manual save is also available from the header.
+
+---
+
+> **Vibe Coded** — This application was fully vibe coded using ChatGPT Codex and Deepseek. Expect bugs.
