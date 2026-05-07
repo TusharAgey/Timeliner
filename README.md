@@ -86,6 +86,14 @@ When creating a workspace, the app scaffolds the required folder structure and w
 
 The selected folder handle is persisted in IndexedDB when possible to speed up reopening the workspace in future sessions.
 
+## Screenshots
+
+![Landing Page Demo](src/assets/Landing_Page_Demo.png)
+_Landing page with workspace creation and open options_
+
+![Project Intelligence Summary](src/assets/Project_Intelligence_Summary.png)
+_Project summary modal with live metrics and timeline view_
+
 ## Notes
 
 - If the File System Access API is unavailable, the app shows a helpful Chromium-browser requirement message.
