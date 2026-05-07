@@ -1,5 +1,7 @@
 # Timeliner
 
+[🌐 Live Demo](https://tusharagey.github.io/Timeliner)
+
 Timeliner is a React + TypeScript + Vite MVP for PMs managing multiple projects in a local folder-backed workspace. It runs entirely in the browser, uses the File System Access API for persistence, and stores everything as JSON files in a user-selected workspace directory.
 
 ## Features
