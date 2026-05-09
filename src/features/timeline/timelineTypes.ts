@@ -11,5 +11,4 @@ export type TimelineLane = {
 export type TimelineTaskItem = {
   lane: TimelineLane;
   task: Task;
-  offset: number;
 };

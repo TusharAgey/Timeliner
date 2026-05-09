@@ -7,6 +7,13 @@ import {
   Plus,
   Save,
   Search,
+  Undo2,
+  Redo2,
+  LayoutGrid,
+  GitBranch,
+  Download,
+  Upload,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -23,6 +30,10 @@ import { TimelineView } from "../features/timeline/TimelineView";
 import { SummaryChips } from "../features/timeline/SummaryChips";
 import { ZoomControls } from "../features/timeline/ZoomControls";
 import { aggregateVisibleSummary } from "../lib/summary";
+import { WorkloadView } from "../features/workspace/WorkloadView";
+import { GanttView } from "../features/timeline/GanttView";
+import { ExportImportModal } from "../features/workspace/ExportImportModal";
+import { TemplatesModal } from "../features/tasks/TemplatesModal";
 import type {
   TimelineFilter,
   TimelineZoom,
@@ -37,8 +48,7 @@ const saveLabel: Record<string, string> = {
 
 export const TimelinerPage = () => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [zoom, setZoom] = useState<TimelineZoom>("month");
-  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("all");
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const {
     data,
     loading,
@@ -66,11 +76,33 @@ export const TimelinerPage = () => {
     createTaskFromNaturalLanguage,
     upsertTask,
     deleteTask,
+    zoom,
+    setZoom,
+    timelineFilter,
+    setTimelineFilter,
+    selectedTaskIds,
+    clearTaskSelection,
+    undoStack,
+    redoStack,
+    undo,
+    redo,
+    workloadViewOpen,
+    setWorkloadViewOpen,
+    ganttViewOpen,
+    setGanttViewOpen,
+    exportImportOpen,
+    setExportImportOpen,
+    exportWorkspace,
+    importWorkspace,
+    templates,
+    saveTemplate,
+    deleteTemplate,
+    instantiateTemplate,
   } = useWorkspaceStore();
 
   useEffect(() => {
     if (!recentlyDeletedTask) return undefined;
-    const timeout = window.setTimeout(() => clearRecentlyDeletedTask(), 5000);
+    const timeout = window.setTimeout(() => clearRecentlyDeletedTask(), 8000);
     return () => window.clearTimeout(timeout);
   }, [recentlyDeletedTask, clearRecentlyDeletedTask]);
 
@@ -152,6 +184,25 @@ export const TimelinerPage = () => {
             />
           </div>
           <div className="flex items-center justify-start gap-2 lg:justify-end">
+            {/* Undo/Redo */}
+            <Button
+              variant="ghost"
+              onClick={undo}
+              disabled={undoStack.length === 0}
+              className="rounded-full p-2"
+              title="Undo"
+            >
+              <Undo2 className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={redo}
+              disabled={redoStack.length === 0}
+              className="rounded-full p-2"
+              title="Redo"
+            >
+              <Redo2 className="size-4" />
+            </Button>
             <Button
               variant="secondary"
               onClick={() => setSummaryOpen(true)}
@@ -210,6 +261,42 @@ export const TimelinerPage = () => {
                   >
                     <Users className="size-4" /> Manage team
                   </button>
+                  <button
+                    onClick={() => {
+                      setWorkloadViewOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
+                  >
+                    <LayoutGrid className="size-4" /> Workload view
+                  </button>
+                  <button
+                    onClick={() => {
+                      setGanttViewOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
+                  >
+                    <GitBranch className="size-4" /> Gantt chart
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTemplatesOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
+                  >
+                    <ClipboardList className="size-4" /> Task templates
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportImportOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
+                  >
+                    <Download className="size-4" /> Export / Import
+                  </button>
                 </div>
               ) : null}
             </div>
@@ -219,15 +306,27 @@ export const TimelinerPage = () => {
         <div className="px-6 pb-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <nav className="inline-flex rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/8">
-              {data.workspace.tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`rounded-2xl px-4 py-2 text-sm transition ${activeTabId === tab.id ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : "text-slate-400 hover:text-slate-200"}`}
-                >
-                  {tab.name}
-                </button>
-              ))}
+              {data.workspace.tabs.map((tab) => {
+                const tabProjects = tab.projectIds
+                  .map((pid) => data?.projects.find((p) => p.id === pid))
+                  .filter(Boolean);
+                const taskCount = tabProjects.reduce(
+                  (sum, p) => sum + (p?.tasks.length ?? 0),
+                  0,
+                );
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`rounded-2xl px-4 py-2 text-sm transition ${activeTabId === tab.id ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : "text-slate-400 hover:text-slate-200"}`}
+                  >
+                    {tab.name}
+                    <span className="ml-2 rounded-full bg-white/8 px-2 py-0.5 text-[11px]">
+                      {taskCount}
+                    </span>
+                  </button>
+                );
+              })}
             </nav>
             <ZoomControls value={zoom} onChange={setZoom} />
           </div>
@@ -239,49 +338,78 @@ export const TimelinerPage = () => {
                 setTimelineFilter(filter as TimelineFilter)
               }
             />
+            {selectedTaskIds.length > 0 ? (
+              <div className="flex items-center gap-2 rounded-2xl bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-200 ring-1 ring-cyan-400/20">
+                <span className="font-medium">{selectedTaskIds.length}</span>{" "}
+                selected
+                <button
+                  onClick={clearTaskSelection}
+                  className="ml-2 rounded-full bg-white/8 px-2 py-0.5 text-xs hover:bg-white/14"
+                >
+                  Clear
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 
         <main className="flex-1 px-6 pb-6 pt-1">
-          <div className="grid grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] gap-8 pb-4">
-            {visibleProjects.map((project, index) => (
-              <section
-                key={project.id}
-                className={index === 0 ? "col-start-1" : "col-start-3"}
-              >
-                <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(8,17,29,0.98),rgba(8,17,29,0.84),transparent)] pb-3 pt-1">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${index === 0 ? "bg-violet-400" : "bg-cyan-400"}`}
-                    />
-                    <div>
-                      <h2 className="text-xl font-semibold tracking-tight text-white">
-                        {project.name}
-                      </h2>
-                      <p className="mt-0.5 max-w-md text-sm text-slate-500">
-                        {project.description}
-                      </p>
+          {ganttViewOpen ? (
+            <GanttView
+              projects={visibleProjects}
+              onClose={() => setGanttViewOpen(false)}
+            />
+          ) : workloadViewOpen ? (
+            <WorkloadView
+              projects={visibleProjects}
+              people={data.people}
+              onClose={() => setWorkloadViewOpen(false)}
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] gap-8 pb-4">
+                {visibleProjects.map((project, index) => (
+                  <section
+                    key={project.id}
+                    className={index === 0 ? "col-start-1" : "col-start-3"}
+                  >
+                    <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(8,17,29,0.98),rgba(8,17,29,0.84),transparent)] pb-3 pt-1">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`h-2.5 w-2.5 rounded-full ${index === 0 ? "bg-violet-400" : "bg-cyan-400"}`}
+                        />
+                        <div>
+                          <h2 className="text-xl font-semibold tracking-tight text-white">
+                            {project.name}
+                          </h2>
+                          <p className="mt-0.5 max-w-md text-sm text-slate-500">
+                            {project.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        <div>{project.tasks.length} Tasks</div>
+                        <div className="mt-1">
+                          {project.milestones.length} Milestones
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    <div>{project.tasks.length} Tasks</div>
-                    <div className="mt-1">
-                      {project.milestones.length} Milestones
-                    </div>
-                  </div>
-                </div>
-              </section>
-            ))}
-          </div>
+                  </section>
+                ))}
+              </div>
 
-          <TimelineView
-            projects={visibleProjects}
-            people={data.people}
-            zoom={zoom}
-            filter={timelineFilter}
-            onSaveTask={(projectId, task) => upsertTask(projectId, task)}
-            onDeleteTask={(projectId, taskId) => deleteTask(projectId, taskId)}
-          />
+              <TimelineView
+                projects={visibleProjects}
+                people={data.people}
+                zoom={zoom}
+                filter={timelineFilter}
+                onSaveTask={(projectId, task) => upsertTask(projectId, task)}
+                onDeleteTask={(projectId, taskId) =>
+                  deleteTask(projectId, taskId)
+                }
+              />
+            </>
+          )}
         </main>
       </div>
 
@@ -305,6 +433,21 @@ export const TimelinerPage = () => {
         onClose={() => setTeamOpen(false)}
         onSave={upsertPerson}
         onDelete={deletePerson}
+      />
+      <ExportImportModal
+        open={exportImportOpen}
+        onClose={() => setExportImportOpen(false)}
+        onExport={exportWorkspace}
+        onImport={importWorkspace}
+      />
+      <TemplatesModal
+        open={templatesOpen}
+        templates={templates}
+        projects={visibleProjects}
+        onClose={() => setTemplatesOpen(false)}
+        onSaveTemplate={saveTemplate}
+        onDeleteTemplate={deleteTemplate}
+        onInstantiate={instantiateTemplate}
       />
 
       {recentlyDeletedTask ? (

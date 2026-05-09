@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Trash2,
+  CheckSquare,
+  Square,
+  History,
+  GitBranch,
+} from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Input, Textarea } from "../../components/ui/Input";
 import { fullDate } from "../../lib/date";
@@ -14,8 +23,9 @@ import {
   reassignAccountable,
   reassignTask,
 } from "../../lib/assignees";
-import type { Person, Task } from "../../models/types";
+import type { Person, Task, CrossProjectDependency } from "../../models/types";
 import { PILL_WIDTH } from "./timelineLayout";
+import { useWorkspaceStore } from "../../store/useWorkspaceStore";
 
 const shiftDate = (value: string, days: number) => {
   const date = new Date(value);
@@ -445,14 +455,16 @@ export const TaskCard = ({
               </div>
             </div>
             {expanded ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <p className="text-sm leading-6 text-slate-300/90">
                   {task.description || "No description yet."}
                 </p>
+
+                {/* Ownership history */}
                 {handoffCount ? (
                   <div className="rounded-xl bg-white/[0.025] px-2.5 py-2 text-xs text-slate-400 ring-1 ring-white/6">
-                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                      Ownership history
+                    <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                      <History className="size-3" /> Ownership history
                     </div>
                     {getAssigneeHistory(task).map((entry) => (
                       <div
@@ -472,13 +484,55 @@ export const TaskCard = ({
                     ))}
                   </div>
                 ) : null}
+
+                {/* Cross-project dependencies */}
+                {task.crossProjectDependencies.length > 0 ? (
+                  <div className="rounded-xl bg-white/[0.025] px-2.5 py-2 text-xs text-slate-400 ring-1 ring-white/6">
+                    <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                      <GitBranch className="size-3" /> Cross-project
+                      dependencies
+                    </div>
+                    {task.crossProjectDependencies.map((dep, i) => (
+                      <div key={i}>
+                        {dep.label || `Task in project ${dep.projectId}`}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* Activity log */}
+                {task.activityLog.length > 0 ? (
+                  <div className="rounded-xl bg-white/[0.025] px-2.5 py-2 text-xs text-slate-400 ring-1 ring-white/6">
+                    <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                      <History className="size-3" /> Activity log
+                    </div>
+                    {task.activityLog
+                      .slice(-5)
+                      .reverse()
+                      .map((entry) => (
+                        <div key={entry.id} className="flex gap-2 py-0.5">
+                          <span className="shrink-0 text-slate-500">
+                            {new Date(entry.timestamp).toLocaleDateString()}
+                          </span>
+                          <span>
+                            {entry.actor} {entry.action}
+                            {entry.field ? ` ${entry.field}` : ""}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
-            {task.dependencies.length || task.blockedReason ? (
+            {task.dependencies.length ||
+            task.blockedReason ||
+            task.crossProjectDependencies.length ? (
               <div className="rounded-xl bg-white/[0.025] px-2.5 py-1.5 text-xs text-slate-400 ring-1 ring-white/6">
                 {task.blockedReason
                   ? `Blocked: ${task.blockedReason}`
-                  : `${task.dependencies.length} dependency${task.dependencies.length === 1 ? "" : "ies"}`}
+                  : task.dependencies.length > 0
+                    ? `${task.dependencies.length} dependency${task.dependencies.length === 1 ? "" : "ies"}`
+                    : `${task.crossProjectDependencies.length} cross-project dep${task.crossProjectDependencies.length === 1 ? "" : "s"}`}
               </div>
             ) : null}
           </>

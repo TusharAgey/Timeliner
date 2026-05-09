@@ -37,7 +37,10 @@ const emptyTask = (): Task => ({
   labels: [],
   blockedReason: "",
   dependencies: [],
+  crossProjectDependencies: [],
   status: "Not Started",
+  activityLog: [],
+  isTemplate: false,
 });
 
 export const AddTaskModal = ({
