@@ -19,8 +19,8 @@ export const Modal = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md">
-      <div className="w-full max-w-4xl rounded-[28px] bg-[#0d1726]/96 p-6 shadow-2xl ring-1 ring-white/10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-md">
+      <div className="w-full max-w-4xl rounded-[28px] bg-panel-strong p-6 shadow-2xl ring-1 ring-white/10">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold tracking-tight text-text">

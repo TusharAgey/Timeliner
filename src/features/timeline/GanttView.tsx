@@ -71,7 +71,7 @@ export const GanttView = ({ projects, onClose }: GanttViewProps) => {
       <div className="overflow-auto rounded-2xl bg-black/18 ring-1 ring-white/6">
         {/* Header with dates */}
         <div
-          className="sticky top-0 z-10 flex border-b border-white/6 bg-[#0a1220]"
+          className="sticky top-0 z-10 flex border-b border-white/6 bg-bg"
           style={{ minWidth: totalWidth + 240 }}
         >
           <div className="w-60 shrink-0 border-r border-white/6 px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">

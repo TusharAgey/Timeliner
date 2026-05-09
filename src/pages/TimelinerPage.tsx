@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import { ThemeSwitcher } from "../components/ui/ThemeSwitcher";
+import { useTheme } from "../hooks/useTheme";
+
 import { matchesProjectSearch } from "../lib/search";
 import {
   selectActiveTabProjects,
@@ -66,6 +69,8 @@ export const TimelinerPage = () => {
     new Set(),
   );
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+
+  const { theme, setTheme } = useTheme();
 
   const {
     data,
@@ -179,7 +184,7 @@ export const TimelinerPage = () => {
 
   return (
     <div className="min-h-screen px-5 py-5 lg:px-8 lg:py-6">
-      <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-[1600px] flex-col rounded-[34px] bg-[rgba(8,17,29,0.72)] shadow-[0_24px_80px_rgba(2,8,23,0.45)] ring-1 ring-white/8 backdrop-blur-xl">
+      <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-[1600px] flex-col rounded-[34px] bg-main-container shadow-glow ring-1 ring-white/8 backdrop-blur-xl">
         <header className="grid gap-3 px-6 py-3.5 lg:grid-cols-[1fr_minmax(240px,360px)_1fr] lg:items-center">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
@@ -233,6 +238,7 @@ export const TimelinerPage = () => {
               <Plus className="size-4" />
               Add Task
             </Button>
+            <ThemeSwitcher current={theme} onChange={setTheme} />
             <div className="relative">
               <Button
                 variant="secondary"
@@ -242,7 +248,7 @@ export const TimelinerPage = () => {
                 <MoreHorizontal className="size-4" />
               </Button>
               {menuOpen ? (
-                <div className="absolute right-0 top-12 z-30 min-w-52 rounded-2xl bg-[#0d1726] p-2 shadow-2xl ring-1 ring-white/10">
+                <div className="absolute right-0 top-12 z-30 min-w-52 rounded-2xl bg-panel-strong p-2 shadow-2xl ring-1 ring-white/10">
                   <button
                     onClick={() => {
                       openWorkspace();
@@ -417,7 +423,7 @@ export const TimelinerPage = () => {
                       key={project.id}
                       className={index === 0 ? "col-start-1" : "col-start-3"}
                     >
-                      <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(8,17,29,0.98),rgba(8,17,29,0.84),transparent)] pb-3 pt-1">
+                      <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 bg-[linear-gradient(180deg,var(--panel-strong),var(--panel),transparent)] pb-3 pt-1">
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() =>
@@ -519,7 +525,7 @@ export const TimelinerPage = () => {
       />
 
       {recentlyDeletedTask ? (
-        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-2xl bg-[#0d1726]/96 px-4 py-3 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-2xl bg-panel-strong px-4 py-3 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
           <div>
             <p className="text-sm font-medium text-white">Task deleted</p>
             <p className="text-xs text-slate-400">

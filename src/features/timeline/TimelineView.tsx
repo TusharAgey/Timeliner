@@ -277,14 +277,14 @@ export const TimelineView = ({
                 })(),
               }}
             >
-              <div className="h-2.5 w-2.5 rounded-full border border-white/15 bg-[#0f1b2d]" />
+              <div className="h-2.5 w-2.5 rounded-full border border-white/15 bg-bg" />
               <div className="mt-1 h-3 w-px bg-white/10" />
-              <div className="mt-2 rounded-full bg-[#0f1b2d]/90 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400 ring-1 ring-white/8">
+              <div className="mt-2 rounded-full bg-bg/90 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400 ring-1 ring-white/8">
                 {marker.label}
               </div>
             </div>
           ))}
-          <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-[#0f1b2d]/90 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-500 ring-1 ring-white/8">
+          <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-bg/90 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-500 ring-1 ring-white/8">
             {fullDate(new Date().toISOString().slice(0, 10))}
           </div>
         </div>

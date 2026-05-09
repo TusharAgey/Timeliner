@@ -1,0 +1,200 @@
+/* ============================================================
+   Timeliner — Theme Definitions
+   Each theme is scoped to [data-theme="..."]
+   ============================================================ */
+
+/* ---- Base / Reset ---- */
+:root,
+[data-theme] {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark;
+  transition:
+    background-color 0.35s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+[data-theme] *,
+[data-theme] *::before,
+[data-theme] *::after {
+  transition-property:
+    background-color, color, border-color, box-shadow, opacity;
+  transition-duration: 0.25s;
+  transition-timing-function: ease;
+}
+
+/* ---- 1. Midnight (current default) ---- */
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --bg: #08111f;
+  --panel: rgba(10, 18, 31, 0.78);
+  --panel-strong: rgba(10, 18, 31, 0.96);
+  --panel-soft: rgba(255, 255, 255, 0.045);
+  --border: rgba(148, 163, 184, 0.1);
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #8b5cf6;
+  --accent-2: #22c55e;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --scrollbar-thumb: rgba(148, 163, 184, 0.22);
+  --body-gradient:
+    radial-gradient(
+      circle at top left,
+      rgba(124, 58, 237, 0.1),
+      transparent 28%
+    ),
+    linear-gradient(180deg, #0a1220 0%, #08111d 100%);
+  --card-shadow: 0 20px 60px rgba(2, 8, 23, 0.35);
+  --glow-color: rgba(124, 58, 237, 0.32);
+  --main-container-bg: rgba(8, 17, 29, 0.72);
+}
+
+/* ---- 2. Material Dark (Google Material You) ---- */
+[data-theme="material-dark"] {
+  color-scheme: dark;
+  --bg: #1a1c1e;
+  --panel: rgba(32, 33, 36, 0.82);
+  --panel-strong: rgba(32, 33, 36, 0.96);
+  --panel-soft: rgba(255, 255, 255, 0.04);
+  --border: rgba(154, 160, 166, 0.12);
+  --text: #e8eaed;
+  --muted: #9aa0a6;
+  --accent: #8ab4f8;
+  --accent-2: #81c995;
+  --danger: #f28b82;
+  --warning: #fdd663;
+  --scrollbar-thumb: rgba(154, 160, 166, 0.2);
+  --body-gradient:
+    radial-gradient(
+      circle at top left,
+      rgba(138, 180, 248, 0.08),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #202124 0%, #1a1c1e 100%);
+  --card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --glow-color: rgba(138, 180, 248, 0.3);
+  --main-container-bg: rgba(32, 33, 36, 0.75);
+}
+
+/* ---- 3. Material Light (Google Calendar / Material You Light) ---- */
+[data-theme="material-light"] {
+  color-scheme: light;
+  --bg: #eef0f4;
+  --panel: rgba(255, 255, 255, 0.82);
+  --panel-strong: rgba(255, 255, 255, 0.96);
+  --panel-soft: rgba(0, 0, 0, 0.04);
+  --border: rgba(0, 0, 0, 0.1);
+  --text: #202124;
+  --muted: #5f6368;
+  --accent: #1a73e8;
+  --accent-2: #1e8e3e;
+  --danger: #d93025;
+  --warning: #f9ab00;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --body-gradient:
+    radial-gradient(
+      circle at top left,
+      rgba(26, 115, 232, 0.05),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #eef0f4 0%, #f8f9fa 100%);
+  --card-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  --glow-color: rgba(26, 115, 232, 0.28);
+  --main-container-bg: rgba(255, 255, 255, 0.82);
+}
+
+/* ---- 4. Apple Light (macOS / iOS light mode) ---- */
+[data-theme="apple-light"] {
+  color-scheme: light;
+  --bg: #e8e8ed;
+  --panel: rgba(255, 255, 255, 0.82);
+  --panel-strong: rgba(255, 255, 255, 0.96);
+  --panel-soft: rgba(0, 0, 0, 0.04);
+  --border: rgba(60, 60, 67, 0.12);
+  --text: #1d1d1f;
+  --muted: #6c6c70;
+  --accent: #007aff;
+  --accent-2: #34c759;
+  --danger: #ff3b30;
+  --warning: #ff9500;
+  --scrollbar-thumb: rgba(60, 60, 67, 0.2);
+  --body-gradient:
+    radial-gradient(
+      circle at top left,
+      rgba(0, 122, 255, 0.04),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #e8e8ed 0%, #f5f5f7 100%);
+  --card-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  --glow-color: rgba(0, 122, 255, 0.25);
+  --main-container-bg: rgba(255, 255, 255, 0.85);
+}
+
+/* ---- 5. Apple Space Gray (macOS dark mode) ---- */
+[data-theme="apple-space-gray"] {
+  color-scheme: dark;
+  --bg: #1c1c1e;
+  --panel: rgba(44, 44, 46, 0.82);
+  --panel-strong: rgba(44, 44, 46, 0.96);
+  --panel-soft: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f5f5f7;
+  --muted: #98989d;
+  --accent: #0a84ff;
+  --accent-2: #30d158;
+  --danger: #ff453a;
+  --warning: #ff9f0a;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --body-gradient:
+    radial-gradient(
+      circle at top left,
+      rgba(10, 132, 255, 0.06),
+      transparent 28%
+    ),
+    linear-gradient(180deg, #2c2c2e 0%, #1c1c1e 100%);
+  --card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --glow-color: rgba(10, 132, 255, 0.28);
+  --main-container-bg: rgba(44, 44, 46, 0.75);
+}
+
+/* ---- 6. Nord (Arctic / Premium dark) ---- */
+[data-theme="nord"] {
+  color-scheme: dark;
+  --bg: #2e3440;
+  --panel: rgba(46, 52, 64, 0.82);
+  --panel-strong: rgba(46, 52, 64, 0.96);
+  --panel-soft: rgba(255, 255, 255, 0.04);
+  --border: rgba(216, 222, 233, 0.08);
+  --text: #eceff4;
+  --muted: #81a1c1;
+  --accent: #88c0d0;
+  --accent-2: #a3be8c;
+  --danger: #bf616a;
+  --warning: #ebcb8b;
+  --scrollbar-thumb: rgba(216, 222, 233, 0.15);
+  --body-gradient:
+    radial-gradient(
+      circle at top left,
+      rgba(136, 192, 208, 0.08),
+      transparent 28%
+    ),
+    linear-gradient(180deg, #3b4252 0%, #2e3440 100%);
+  --card-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --glow-color: rgba(136, 192, 208, 0.28);
+  --main-container-bg: rgba(46, 52, 64, 0.75);
+}
