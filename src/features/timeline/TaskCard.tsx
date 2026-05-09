@@ -21,8 +21,15 @@ import {
   reassignAccountable,
   reassignTask,
 } from "../../lib/assignees";
-import type { Person, Task } from "../../models/types";
+import type { Person, Task, TaskPriority } from "../../models/types";
 import { PILL_WIDTH } from "./timelineLayout";
+
+const priorityColor: Record<TaskPriority, string> = {
+  Low: "bg-slate-500",
+  Medium: "bg-blue-500",
+  High: "bg-amber-500",
+  Critical: "bg-rose-500",
+};
 
 const shiftDate = (value: string, days: number) => {
   const date = new Date(value);
@@ -272,11 +279,18 @@ export const TaskCard = ({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-3">
-            <div
-              className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusTone[status]}`}
-            >
-              {status}
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-block size-2 rounded-full ${priorityColor[task.priority]}`}
+                title={`Priority: ${task.priority}`}
+              />
+              <div
+                className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusTone[status]}`}
+              >
+                {status}
+              </div>
             </div>
+
             <div className="text-[11px] text-muted">
               {fullDate(task.startDate)} → {fullDate(task.endDate)}
             </div>

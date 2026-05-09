@@ -9,7 +9,12 @@ import { fullDate, today } from "../../lib/date";
 import { computeTaskStatus } from "../../lib/status";
 import type { Person, Project, Task } from "../../models/types";
 import { TaskCard } from "./TaskCard";
-import type { TimelineFilter, TimelineZoom } from "./timelineTypes";
+import type {
+  PriorityFilter,
+  TimelineFilter,
+  TimelineZoom,
+} from "./timelineTypes";
+
 import {
   AXIS_GUTTER,
   AXIS_WIDTH,
@@ -52,6 +57,7 @@ type TimelineViewProps = {
   people: Person[];
   zoom: TimelineZoom;
   filter?: TimelineFilter;
+  priorityFilter?: PriorityFilter;
   onSaveTask: (projectId: string, task: Task) => void;
   onDeleteTask: (projectId: string, taskId: string) => void;
 };
@@ -61,6 +67,7 @@ export const TimelineView = ({
   people,
   zoom,
   filter = "all",
+  priorityFilter = "all",
   onSaveTask,
   onDeleteTask,
 }: TimelineViewProps) => {
@@ -100,6 +107,7 @@ export const TimelineView = ({
       return status === "At Risk" || status === "Delayed";
     if (filter === "startsToday")
       return task.startDate === currentDay.toISOString().slice(0, 10);
+    if (priorityFilter !== "all") return task.priority === priorityFilter;
     return true;
   };
 

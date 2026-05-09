@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
+  ChevronDown,
+  ChevronRight,
   FolderOpen,
   MoreHorizontal,
   Users,
@@ -34,6 +36,7 @@ import { GanttView } from "../features/timeline/GanttView";
 import { ExportImportModal } from "../features/workspace/ExportImportModal";
 import { TemplatesModal } from "../features/tasks/TemplatesModal";
 import type {
+  PriorityFilter,
   TimelineFilter,
   TimelineZoom,
 } from "../features/timeline/timelineTypes";
@@ -45,9 +48,26 @@ const saveLabel: Record<string, string> = {
   error: "Save error",
 };
 
+const priorityFilterOptions: {
+  value: PriorityFilter;
+  label: string;
+  color: string;
+}[] = [
+  { value: "all", label: "All", color: "" },
+  { value: "Critical", label: "Critical", color: "bg-rose-500" },
+  { value: "High", label: "High", color: "bg-amber-500" },
+  { value: "Medium", label: "Medium", color: "bg-blue-500" },
+  { value: "Low", label: "Low", color: "bg-slate-500" },
+];
+
 export const TimelinerPage = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
+    new Set(),
+  );
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+
   const {
     data,
     loading,
@@ -337,18 +357,41 @@ export const TimelinerPage = () => {
                 setTimelineFilter(filter as TimelineFilter)
               }
             />
-            {selectedTaskIds.length > 0 ? (
-              <div className="flex items-center gap-2 rounded-2xl bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-200 ring-1 ring-cyan-400/20">
-                <span className="font-medium">{selectedTaskIds.length}</span>{" "}
-                selected
-                <button
-                  onClick={clearTaskSelection}
-                  className="ml-2 rounded-full bg-white/8 px-2 py-0.5 text-xs hover:bg-white/14"
-                >
-                  Clear
-                </button>
+            <div className="flex items-center gap-2">
+              {/* Priority filter */}
+              <div className="flex items-center gap-1 rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/8">
+                {priorityFilterOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setPriorityFilter(option.value)}
+                    className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-medium transition ${
+                      priorityFilter === option.value
+                        ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {option.color ? (
+                      <span
+                        className={`inline-block size-1.5 rounded-full ${option.color}`}
+                      />
+                    ) : null}
+                    {option.label}
+                  </button>
+                ))}
               </div>
-            ) : null}
+              {selectedTaskIds.length > 0 ? (
+                <div className="flex items-center gap-2 rounded-2xl bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-200 ring-1 ring-cyan-400/20">
+                  <span className="font-medium">{selectedTaskIds.length}</span>{" "}
+                  selected
+                  <button
+                    onClick={clearTaskSelection}
+                    className="ml-2 rounded-full bg-white/8 px-2 py-0.5 text-xs hover:bg-white/14"
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -367,46 +410,74 @@ export const TimelinerPage = () => {
           ) : (
             <>
               <div className="grid grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] gap-8 pb-4">
-                {visibleProjects.map((project, index) => (
-                  <section
-                    key={project.id}
-                    className={index === 0 ? "col-start-1" : "col-start-3"}
-                  >
-                    <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(8,17,29,0.98),rgba(8,17,29,0.84),transparent)] pb-3 pt-1">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`h-2.5 w-2.5 rounded-full ${index === 0 ? "bg-violet-400" : "bg-cyan-400"}`}
-                        />
-                        <div>
-                          <h2 className="text-xl font-semibold tracking-tight text-white">
-                            {project.name}
-                          </h2>
-                          <p className="mt-0.5 max-w-md text-sm text-slate-500">
-                            {project.description}
-                          </p>
+                {visibleProjects.map((project, index) => {
+                  const isCollapsed = collapsedProjects.has(project.id);
+                  return (
+                    <section
+                      key={project.id}
+                      className={index === 0 ? "col-start-1" : "col-start-3"}
+                    >
+                      <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(8,17,29,0.98),rgba(8,17,29,0.84),transparent)] pb-3 pt-1">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() =>
+                              setCollapsedProjects((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(project.id)) {
+                                  next.delete(project.id);
+                                } else {
+                                  next.add(project.id);
+                                }
+                                return next;
+                              })
+                            }
+                            className="rounded-full p-1 text-slate-400 transition hover:bg-white/8 hover:text-white"
+                          >
+                            {isCollapsed ? (
+                              <ChevronRight className="size-4" />
+                            ) : (
+                              <ChevronDown className="size-4" />
+                            )}
+                          </button>
+                          <div
+                            className={`h-2.5 w-2.5 rounded-full ${index === 0 ? "bg-violet-400" : "bg-cyan-400"}`}
+                          />
+                          <div>
+                            <h2 className="text-xl font-semibold tracking-tight text-white">
+                              {project.name}
+                            </h2>
+                            <p className="mt-0.5 max-w-md text-sm text-slate-500">
+                              {project.description}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          <div>{project.tasks.length} Tasks</div>
+                          <div className="mt-1">
+                            {project.milestones.length} Milestones
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                        <div>{project.tasks.length} Tasks</div>
-                        <div className="mt-1">
-                          {project.milestones.length} Milestones
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-                ))}
+                    </section>
+                  );
+                })}
               </div>
 
-              <TimelineView
-                projects={visibleProjects}
-                people={data.people}
-                zoom={zoom}
-                filter={timelineFilter}
-                onSaveTask={(projectId, task) => upsertTask(projectId, task)}
-                onDeleteTask={(projectId, taskId) =>
-                  deleteTask(projectId, taskId)
-                }
-              />
+              {visibleProjects.some((p) => !collapsedProjects.has(p.id)) ? (
+                <TimelineView
+                  projects={visibleProjects.filter(
+                    (p) => !collapsedProjects.has(p.id),
+                  )}
+                  people={data.people}
+                  zoom={zoom}
+                  filter={timelineFilter}
+                  priorityFilter={priorityFilter}
+                  onSaveTask={(projectId, task) => upsertTask(projectId, task)}
+                  onDeleteTask={(projectId, taskId) =>
+                    deleteTask(projectId, taskId)
+                  }
+                />
+              ) : null}
             </>
           )}
         </main>
