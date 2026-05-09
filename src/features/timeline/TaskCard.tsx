@@ -4,8 +4,6 @@ import {
   ChevronUp,
   ExternalLink,
   Trash2,
-  CheckSquare,
-  Square,
   History,
   GitBranch,
 } from "lucide-react";
@@ -23,9 +21,8 @@ import {
   reassignAccountable,
   reassignTask,
 } from "../../lib/assignees";
-import type { Person, Task, CrossProjectDependency } from "../../models/types";
+import type { Person, Task } from "../../models/types";
 import { PILL_WIDTH } from "./timelineLayout";
-import { useWorkspaceStore } from "../../store/useWorkspaceStore";
 
 const shiftDate = (value: string, days: number) => {
   const date = new Date(value);

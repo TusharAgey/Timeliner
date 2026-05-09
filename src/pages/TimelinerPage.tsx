@@ -12,7 +12,6 @@ import {
   LayoutGrid,
   GitBranch,
   Download,
-  Upload,
   ClipboardList,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
