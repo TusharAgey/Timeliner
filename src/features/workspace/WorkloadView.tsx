@@ -12,11 +12,7 @@ type WorkloadViewProps = {
   onClose: () => void;
 };
 
-export const WorkloadView = ({
-  projects,
-  people,
-  onClose,
-}: WorkloadViewProps) => {
+export const WorkloadView = ({ projects, onClose }: WorkloadViewProps) => {
   const workload = useMemo(() => {
     const allTasks = projects.flatMap((project) =>
       project.tasks.map((task) => ({ ...task, projectName: project.name })),
@@ -56,9 +52,18 @@ export const WorkloadView = ({
             Tasks grouped by assignee across visible projects
           </p>
         </div>
-        <Button variant="ghost" onClick={onClose} className="rounded-full p-2">
-          <X className="size-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={onClose} className="px-4">
+            ← Back to timeline
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="rounded-full p-2"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-4">

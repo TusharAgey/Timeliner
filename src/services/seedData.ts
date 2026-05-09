@@ -46,6 +46,9 @@ const makeTask = (
   labels: [],
   blockedReason: "",
   dependencies: [],
+  crossProjectDependencies: [],
+  activityLog: [],
+  isTemplate: false,
   ...task,
 });
 

@@ -17,7 +17,6 @@ import {
   makeAssigneeHistory,
   normalizeAssignees,
 } from "../lib/assignees";
-import { iso } from "../lib/date";
 import type {
   Person,
   Project,

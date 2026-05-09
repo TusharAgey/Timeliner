@@ -54,9 +54,18 @@ export const GanttView = ({ projects, onClose }: GanttViewProps) => {
             Horizontal timeline of all tasks across visible projects
           </p>
         </div>
-        <Button variant="ghost" onClick={onClose} className="rounded-full p-2">
-          <X className="size-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={onClose} className="px-4">
+            ← Back to timeline
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="rounded-full p-2"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-auto rounded-2xl bg-black/18 ring-1 ring-white/6">

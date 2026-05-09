@@ -38,7 +38,6 @@ import { TemplatesModal } from "../features/tasks/TemplatesModal";
 import type {
   PriorityFilter,
   TimelineFilter,
-  TimelineZoom,
 } from "../features/timeline/timelineTypes";
 
 const saveLabel: Record<string, string> = {
@@ -327,8 +326,9 @@ export const TimelinerPage = () => {
             <nav className="inline-flex rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/8">
               {data.workspace.tabs.map((tab) => {
                 const tabProjects = tab.projectIds
-                  .map((pid) => data?.projects.find((p) => p.id === pid))
+                  .map((pid) => data.projects.find((p) => p.id === pid))
                   .filter(Boolean);
+
                 const taskCount = tabProjects.reduce(
                   (sum, p) => sum + (p?.tasks.length ?? 0),
                   0,
@@ -493,9 +493,7 @@ export const TimelinerPage = () => {
         project={primaryProject}
         onClose={() => setAddTaskOpen(false)}
         onSubmit={(projectId, task) => upsertTask(projectId, task)}
-        onSubmitNatural={(projectId, input) => {
-          createTaskFromNaturalLanguage(projectId, input);
-        }}
+        onSubmitNatural={createTaskFromNaturalLanguage}
       />
       <TeamModal
         open={teamOpen}
