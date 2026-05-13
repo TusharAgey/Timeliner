@@ -116,6 +116,7 @@ export const workspaceSchema = z.object({
   name: z.string(),
   projectIds: z.array(z.string()),
   tabs: z.array(tabSchema),
+  jiraDomain: z.string().optional(),
 });
 
 export type TaskPriority = z.infer<typeof taskPrioritySchema>;

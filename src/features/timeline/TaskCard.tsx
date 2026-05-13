@@ -1,28 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Trash2,
-  History,
-  GitBranch,
-} from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, ExternalLink, Trash2 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
-import { Input, Textarea } from "../../components/ui/Input";
 import { fullDate } from "../../lib/date";
 import { computeTaskStatus, statusTone } from "../../lib/status";
 import {
-  getAssigneeHistory,
-  getAccountableHistory,
   getCurrentAssignee,
   getCurrentAccountable,
   getPreviousAssignees,
   getPreviousAccountables,
-  reassignAccountable,
-  reassignTask,
 } from "../../lib/assignees";
 import type { Person, Task, TaskPriority } from "../../models/types";
 import { PILL_WIDTH } from "./timelineLayout";
+import { EditFields } from "./TaskCardFields";
+import { TaskCardDetails } from "./TaskCardDetails";
 
 const priorityColor: Record<TaskPriority, string> = {
   Low: "bg-slate-500",
@@ -44,152 +34,6 @@ const initials = (name: string) =>
     .join("")
     .slice(0, 2)
     .toUpperCase() || "?";
-
-type FieldProps = {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-};
-
-const Field = ({ label, children, className = "" }: FieldProps) => (
-  <label className={`block ${className}`}>
-    <span className="mb-1.5 block text-xs font-medium text-gray-400">
-      {label}
-    </span>
-    {children}
-  </label>
-);
-
-type AssigneeComboboxProps = {
-  value: string;
-  people: Person[];
-  onChange: (value: string) => void;
-};
-
-const AssigneeCombobox = ({
-  value,
-  people,
-  onChange,
-}: AssigneeComboboxProps) => {
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [searchValue, setSearchValue] = useState("");
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const matches = useMemo(() => {
-    const query = searchValue.trim().toLowerCase();
-    if (!query) return people;
-    return people.filter((person) =>
-      [person.name, person.role].some((field) =>
-        field.toLowerCase().includes(query),
-      ),
-    );
-  }, [people, searchValue]);
-  const showCreate =
-    searchValue.trim().length > 0 &&
-    !people.some(
-      (person) =>
-        person.name.toLowerCase() === searchValue.trim().toLowerCase(),
-    );
-  const options = showCreate ? [...matches, null] : matches;
-
-  const selectOption = (person: Person | null) => {
-    onChange(person ? person.name : searchValue.trim());
-    setOpen(false);
-    setSearchValue("");
-    setActiveIndex(0);
-  };
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-        setActiveIndex(0);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [open]);
-
-  return (
-    <div ref={containerRef} className="relative">
-      <Input
-        value={value}
-        onFocus={() => {
-          setSearchValue("");
-          setOpen(true);
-        }}
-        onChange={(event) => {
-          setSearchValue(event.target.value);
-          setOpen(true);
-          setActiveIndex(0);
-        }}
-        onKeyDown={(event) => {
-          if (!open && ["ArrowDown", "ArrowUp"].includes(event.key)) {
-            setOpen(true);
-            return;
-          }
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            setActiveIndex((index) => Math.min(index + 1, options.length - 1));
-          }
-          if (event.key === "ArrowUp") {
-            event.preventDefault();
-            setActiveIndex((index) => Math.max(index - 1, 0));
-          }
-          if (event.key === "Enter" && open && options.length) {
-            event.preventDefault();
-            selectOption(options[activeIndex]);
-          }
-          if (event.key === "Escape") setOpen(false);
-        }}
-        placeholder="Search assignee"
-        className="pr-10"
-      />
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
-      {open ? (
-        <div
-          className="absolute left-0 right-0 top-12 z-[80] overflow-hidden rounded-2xl border border-slate-700 p-1.5 shadow-[0_22px_60px_rgba(0,0,0,0.72)] ring-1 ring-black"
-          style={{ backgroundColor: "#020617" }}
-        >
-          <div
-            className="absolute inset-0 -z-10"
-            style={{ backgroundColor: "#020617" }}
-          />
-          {options.length ? (
-            options.map((person, index) => (
-              <button
-                key={person?.id ?? "create-assignee"}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => selectOption(person)}
-                className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition ${index === activeIndex ? "bg-slate-800" : "bg-slate-950 hover:bg-slate-900"}`}
-              >
-                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-semibold text-slate-200 ring-1 ring-white/8">
-                  {person ? initials(person.name) : "+"}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm text-slate-100">
-                    {person ? person.name : `Add “${searchValue.trim()}”`}
-                  </span>
-                  <span className="block truncate text-xs text-slate-500">
-                    {person ? person.role : "Use this new assignee name"}
-                  </span>
-                </span>
-              </button>
-            ))
-          ) : (
-            <div className="px-3 py-2 text-sm text-slate-400">
-              No people found
-            </div>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-};
 
 type TaskCardProps = {
   task: Task;
@@ -217,8 +61,6 @@ export const TaskCard = ({
   const currentAccountable = getCurrentAccountable(task);
   const previousAssignees = getPreviousAssignees(task);
   const previousAccountables = getPreviousAccountables(task);
-  const draftAssignee = getCurrentAssignee(draft);
-  const draftAccountable = getCurrentAccountable(draft);
   const handoffCount = previousAssignees.length + previousAccountables.length;
   const status = useMemo(() => computeTaskStatus(draft), [draft]);
   const expectedProgress = useMemo(() => {
@@ -296,15 +138,8 @@ export const TaskCard = ({
             </div>
           </div>
           {editing ? (
-            <div className="mt-4 rounded-2xl bg-black/16 p-3 ring-1 ring-white/8">
-              <Field label="Task Title">
-                <Input
-                  value={draft.title}
-                  onChange={(event) =>
-                    setDraft({ ...draft, title: event.target.value })
-                  }
-                />
-              </Field>
+            <div className="mt-4">
+              <EditFields draft={draft} people={people} onChange={setDraft} />
             </div>
           ) : (
             <h4 className="mt-2 text-[14px] font-semibold leading-5 text-white">
@@ -316,112 +151,13 @@ export const TaskCard = ({
           variant="ghost"
           className="rounded-full p-2 text-muted opacity-0 transition group-hover:opacity-100"
           onClick={() => onDelete(task.id)}
+          aria-label={`Delete task: ${task.title}`}
         >
           <Trash2 className="size-4" />
         </Button>
       </div>
       <div className="mt-2 grid gap-2 text-[13px] text-slate-300">
-        {editing ? (
-          <div className="grid gap-3 rounded-2xl bg-black/16 p-3 ring-1 ring-white/8">
-            <Field label="Responsible">
-              <AssigneeCombobox
-                value={draftAssignee}
-                people={people}
-                onChange={(assignee) => setDraft(reassignTask(draft, assignee))}
-              />
-            </Field>
-            <Field label="Accountable">
-              <AssigneeCombobox
-                value={draftAccountable}
-                people={people}
-                onChange={(accountable) =>
-                  setDraft(reassignAccountable(draft, accountable))
-                }
-              />
-            </Field>
-            <Field label="Jira Link">
-              <Input
-                value={draft.jiraLink}
-                onChange={(event) =>
-                  setDraft({ ...draft, jiraLink: event.target.value })
-                }
-                placeholder="https://..."
-              />
-            </Field>
-            <Field label="Deliverable">
-              <Input
-                value={draft.deliverable}
-                onChange={(event) =>
-                  setDraft({ ...draft, deliverable: event.target.value })
-                }
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Start Date">
-                <Input
-                  type="date"
-                  value={draft.startDate}
-                  onChange={(event) =>
-                    setDraft({ ...draft, startDate: event.target.value })
-                  }
-                />
-              </Field>
-              <Field label="End Date">
-                <Input
-                  type="date"
-                  value={draft.endDate}
-                  onChange={(event) =>
-                    setDraft({ ...draft, endDate: event.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Expected Start">
-                <Input
-                  type="date"
-                  value={draft.expectedStartDate}
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      expectedStartDate: event.target.value,
-                    })
-                  }
-                />
-              </Field>
-              <Field label="Expected End">
-                <Input
-                  type="date"
-                  value={draft.expectedEndDate}
-                  onChange={(event) =>
-                    setDraft({ ...draft, expectedEndDate: event.target.value })
-                  }
-                />
-              </Field>
-            </div>
-            <Field label={`Progress (%) — ${draft.progressPercent}%`}>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={draft.progressPercent}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    progressPercent: Number(event.target.value),
-                  })
-                }
-                className="w-full accent-violet-400"
-              />
-            </Field>
-            <Field label="Description">
-              <Textarea
-                value={draft.description}
-                onChange={(event) =>
-                  setDraft({ ...draft, description: event.target.value })
-                }
-              />
-            </Field>
-          </div>
-        ) : (
+        {!editing && (
           <>
             <div className="flex items-center gap-2 text-[13px] text-slate-300">
               <span className="grid size-6 place-items-center rounded-full bg-white/8 text-[10px] font-semibold text-slate-300 ring-1 ring-white/8">
@@ -465,76 +201,9 @@ export const TaskCard = ({
                 />
               </div>
             </div>
-            {expanded ? (
-              <div className="space-y-3">
-                <p className="text-sm leading-6 text-slate-300/90">
-                  {task.description || "No description yet."}
-                </p>
-
-                {/* Ownership history */}
-                {handoffCount ? (
-                  <div className="rounded-xl bg-white/[0.025] px-2.5 py-2 text-xs text-slate-400 ring-1 ring-white/6">
-                    <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                      <History className="size-3" /> Ownership history
-                    </div>
-                    {getAssigneeHistory(task).map((entry) => (
-                      <div
-                        key={`${entry.name}-${entry.from}-${entry.to ?? "now"}`}
-                      >
-                        Responsible — {entry.name}: {entry.from} →{" "}
-                        {entry.to ?? "Now"}
-                      </div>
-                    ))}
-                    {getAccountableHistory(task).map((entry) => (
-                      <div
-                        key={`a-${entry.name}-${entry.from}-${entry.to ?? "now"}`}
-                      >
-                        Accountable — {entry.name}: {entry.from} →{" "}
-                        {entry.to ?? "Now"}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {/* Cross-project dependencies */}
-                {task.crossProjectDependencies.length > 0 ? (
-                  <div className="rounded-xl bg-white/[0.025] px-2.5 py-2 text-xs text-slate-400 ring-1 ring-white/6">
-                    <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                      <GitBranch className="size-3" /> Cross-project
-                      dependencies
-                    </div>
-                    {task.crossProjectDependencies.map((dep, i) => (
-                      <div key={i}>
-                        {dep.label || `Task in project ${dep.projectId}`}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {/* Activity log */}
-                {task.activityLog.length > 0 ? (
-                  <div className="rounded-xl bg-white/[0.025] px-2.5 py-2 text-xs text-slate-400 ring-1 ring-white/6">
-                    <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                      <History className="size-3" /> Activity log
-                    </div>
-                    {task.activityLog
-                      .slice(-5)
-                      .reverse()
-                      .map((entry) => (
-                        <div key={entry.id} className="flex gap-2 py-0.5">
-                          <span className="shrink-0 text-slate-500">
-                            {new Date(entry.timestamp).toLocaleDateString()}
-                          </span>
-                          <span>
-                            {entry.actor} {entry.action}
-                            {entry.field ? ` ${entry.field}` : ""}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            {expanded && (
+              <TaskCardDetails task={task} handoffCount={handoffCount} />
+            )}
             {task.dependencies.length ||
             task.blockedReason ||
             task.crossProjectDependencies.length ? (
@@ -598,6 +267,7 @@ export const TaskCard = ({
                   progressPercent: Math.min(100, task.progressPercent + 10),
                 })
               }
+              aria-label="Increase progress by 10%"
             >
               +10%
             </button>
@@ -610,6 +280,7 @@ export const TaskCard = ({
                   endDate: shiftDate(task.endDate, 1),
                 })
               }
+              aria-label="Shift dates by 1 day"
             >
               +1d
             </button>

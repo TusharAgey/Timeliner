@@ -26,6 +26,7 @@ import type {
   TaskTemplate,
   CrossProjectDependency,
 } from "../models/types";
+import { workspaceSchema } from "../models/types";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -37,6 +38,7 @@ type DeletedTaskSnapshot = {
 type UndoEntry = {
   description: string;
   undo: () => void;
+  redo: () => void;
 };
 
 type WorkspaceStore = {
@@ -92,7 +94,7 @@ type WorkspaceStore = {
   bulkUpdateTasks: (projectId: string, updates: Partial<Task>) => void;
   bulkShiftDates: (projectId: string, days: number) => void;
   bulkDeleteTasks: (projectId: string) => void;
-  pushUndo: (description: string, undo: () => void) => void;
+  pushUndo: (description: string, undo: () => void, redo: () => void) => void;
   undo: () => void;
   redo: () => void;
   addActivityLogEntry: (
@@ -138,16 +140,23 @@ const withComputedStatuses = (data: WorkspaceData): WorkspaceData => ({
   })),
 });
 
+// Version-tracked debounced save to prevent stale overwrites
+let saveVersion = 0;
 const debouncedSave = debounce(
   async (
     handle: WorkspaceFolderHandle,
     data: WorkspaceData,
     setState: (partial: Partial<WorkspaceStore>) => void,
+    version: number,
   ) => {
     try {
       setState({ saveState: "saving" });
+      // Only save if this is still the latest version
+      if (version !== saveVersion) return;
       await saveWorkspaceToHandle(handle, data);
-      setState({ saveState: "saved" });
+      if (version === saveVersion) {
+        setState({ saveState: "saved" });
+      }
     } catch (error) {
       setState({
         saveState: "error",
@@ -158,6 +167,15 @@ const debouncedSave = debounce(
   },
   700,
 );
+
+const triggerDebouncedSave = (
+  handle: WorkspaceFolderHandle,
+  data: WorkspaceData,
+  setState: (partial: Partial<WorkspaceStore>) => void,
+) => {
+  saveVersion++;
+  debouncedSave(handle, data, setState, saveVersion);
+};
 
 const loadPersistedPrefs = () => {
   try {
@@ -182,6 +200,22 @@ const savePrefs = (zoom: string, timelineFilter: string) => {
   } catch {}
 };
 
+// Persist templates to localStorage so they survive page refreshes
+const TEMPLATES_STORAGE_KEY = "timeliner-templates";
+const loadPersistedTemplates = (): TaskTemplate[] => {
+  try {
+    const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+};
+const persistTemplates = (templates: TaskTemplate[]) => {
+  try {
+    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(templates));
+  } catch {}
+};
+
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
   const prefs = loadPersistedPrefs();
   return {
@@ -203,7 +237,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     selectedTaskIds: [],
     undoStack: [],
     redoStack: [],
-    templates: [],
+    templates: loadPersistedTemplates(),
     workloadViewOpen: false,
     ganttViewOpen: false,
     exportImportOpen: false,
@@ -236,6 +270,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       }
     },
     createWorkspace: async () => {
+      set({ loading: true, error: null });
       try {
         const handle = await chooseWorkspaceFolder();
         const seeded = withComputedStatuses(createSeedWorkspace());
@@ -251,6 +286,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         });
       } catch (error) {
         set({
+          loading: false,
           error:
             error instanceof Error
               ? error.message
@@ -259,6 +295,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       }
     },
     openWorkspace: async () => {
+      set({ loading: true, error: null });
       try {
         const handle = await chooseWorkspaceFolder();
         const loaded = withComputedStatuses(
@@ -274,6 +311,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         });
       } catch (error) {
         set({
+          loading: false,
           error:
             error instanceof Error
               ? error.message
@@ -328,8 +366,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       }
     },
     bulkUpdateTasks: (projectId, updates) => {
-      const { data, handle } = get();
-      if (!data) return;
+      const { data, handle, selectedTaskIds } = get();
+      if (!data || !selectedTaskIds.length) return;
       const prev = structuredClone(data);
       const next = {
         ...data,
@@ -339,7 +377,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
             : {
                 ...project,
                 tasks: project.tasks.map((task) =>
-                  get().selectedTaskIds.includes(task.id)
+                  selectedTaskIds.includes(task.id)
                     ? {
                         ...task,
                         ...updates,
@@ -350,15 +388,18 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
               },
         ),
       };
+      const count = selectedTaskIds.length;
       set({ data: next, saveState: "idle", selectedTaskIds: [] });
-      if (handle) debouncedSave(handle, next, set);
-      get().pushUndo(`Bulk update ${get().selectedTaskIds.length} tasks`, () =>
-        set({ data: prev }),
+      if (handle) triggerDebouncedSave(handle, next, set);
+      get().pushUndo(
+        `Bulk update ${count} tasks`,
+        () => set({ data: prev }),
+        () => set({ data: next }),
       );
     },
     bulkShiftDates: (projectId, days) => {
-      const { data, handle } = get();
-      if (!data) return;
+      const { data, handle, selectedTaskIds } = get();
+      if (!data || !selectedTaskIds.length) return;
       const shift = (d: string) => {
         const date = new Date(d);
         date.setDate(date.getDate() + days);
@@ -373,7 +414,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
             : {
                 ...project,
                 tasks: project.tasks.map((task) =>
-                  get().selectedTaskIds.includes(task.id)
+                  selectedTaskIds.includes(task.id)
                     ? {
                         ...task,
                         startDate: shift(task.startDate),
@@ -393,16 +434,18 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
               },
         ),
       };
+      const count = selectedTaskIds.length;
       set({ data: next, saveState: "idle", selectedTaskIds: [] });
-      if (handle) debouncedSave(handle, next, set);
+      if (handle) triggerDebouncedSave(handle, next, set);
       get().pushUndo(
-        `Shift ${get().selectedTaskIds.length} tasks by ${days}d`,
+        `Shift ${count} tasks by ${days}d`,
         () => set({ data: prev }),
+        () => set({ data: next }),
       );
     },
     bulkDeleteTasks: (projectId) => {
-      const { data, handle } = get();
-      if (!data) return;
+      const { data, handle, selectedTaskIds } = get();
+      if (!data || !selectedTaskIds.length) return;
       const prev = structuredClone(data);
       const next = {
         ...data,
@@ -412,21 +455,27 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
             : {
                 ...project,
                 tasks: project.tasks.filter(
-                  (task) => !get().selectedTaskIds.includes(task.id),
+                  (task) => !selectedTaskIds.includes(task.id),
                 ),
               },
         ),
       };
+      const count = selectedTaskIds.length;
       set({ data: next, saveState: "idle", selectedTaskIds: [] });
-      if (handle) debouncedSave(handle, next, set);
-      get().pushUndo(`Delete ${get().selectedTaskIds.length} tasks`, () =>
-        set({ data: prev }),
+      if (handle) triggerDebouncedSave(handle, next, set);
+      get().pushUndo(
+        `Delete ${count} tasks`,
+        () => set({ data: prev }),
+        () => set({ data: next }),
       );
     },
-    pushUndo: (description, undoFn) => {
+    pushUndo: (description, undoFn, redoFn) => {
       const { undoStack } = get();
       set({
-        undoStack: [...undoStack.slice(-49), { description, undo: undoFn }],
+        undoStack: [
+          ...undoStack.slice(-49),
+          { description, undo: undoFn, redo: redoFn },
+        ],
         redoStack: [],
       });
     },
@@ -444,7 +493,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       const { redoStack } = get();
       if (!redoStack.length) return;
       const entry = redoStack[redoStack.length - 1];
-      entry.undo();
+      entry.redo();
       set({
         redoStack: redoStack.slice(0, -1),
         undoStack: [...get().undoStack, entry],
@@ -458,7 +507,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         : [...data.people, person];
       const next = { ...data, people: nextPeople };
       set({ data: next, saveState: "idle" });
-      if (handle) debouncedSave(handle, next, set);
+      if (handle) triggerDebouncedSave(handle, next, set);
     },
     deletePerson: (personId) => {
       const { data, handle } = get();
@@ -468,14 +517,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         people: data.people.filter((person) => person.id !== personId),
       };
       set({ data: next, saveState: "idle" });
-      if (handle) debouncedSave(handle, next, set);
+      if (handle) triggerDebouncedSave(handle, next, set);
     },
     updateWorkspaceName: (name) => {
       const data = get().data;
       if (!data) return;
       const next = { ...data, workspace: { ...data.workspace, name } };
       set({ data: next });
-      if (get().handle) debouncedSave(get().handle!, next, set);
+      if (get().handle) triggerDebouncedSave(get().handle!, next, set);
     },
     upsertTask: (projectId, task) => {
       const { data, handle } = get();
@@ -500,13 +549,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       );
       const next = { ...data, projects: nextProjects };
       set({ data: next, saveState: "idle", recentlyDeletedTask: null });
-      if (handle) debouncedSave(handle, next, set);
+      if (handle) triggerDebouncedSave(handle, next, set);
       const isNew = !prev.projects
         .find((p) => p.id === projectId)
         ?.tasks.some((t) => t.id === task.id);
       get().pushUndo(
         isNew ? `Create "${task.title}"` : `Update "${task.title}"`,
         () => set({ data: prev }),
+        () => set({ data: next }),
       );
     },
     deleteTask: (projectId, taskId) => {
@@ -528,8 +578,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         ),
       };
       set({ data: next, recentlyDeletedTask: { projectId, task } });
-      if (handle) debouncedSave(handle, next, set);
-      get().pushUndo(`Delete "${task.title}"`, () => set({ data: prev }));
+      if (handle) triggerDebouncedSave(handle, next, set);
+      get().pushUndo(
+        `Delete "${task.title}"`,
+        () => set({ data: prev }),
+        () => set({ data: next }),
+      );
     },
     undoDeleteTask: () => {
       const { data, handle, recentlyDeletedTask } = get();
@@ -552,7 +606,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         ),
       };
       set({ data: next, recentlyDeletedTask: null, saveState: "idle" });
-      if (handle) debouncedSave(handle, next, set);
+      if (handle) triggerDebouncedSave(handle, next, set);
     },
     clearRecentlyDeletedTask: () => set({ recentlyDeletedTask: null }),
     createTaskFromNaturalLanguage: (projectId, input) => {
@@ -608,7 +662,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         ),
       };
       set({ data: next, saveState: "idle" });
-      if (handle) debouncedSave(handle, next, set);
+      if (handle) triggerDebouncedSave(handle, next, set);
     },
     addCrossProjectDependency: (projectId, taskId, dep) => {
       const { data, handle } = get();
@@ -635,7 +689,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         ),
       };
       set({ data: next, saveState: "idle" });
-      if (handle) debouncedSave(handle, next, set);
+      if (handle) triggerDebouncedSave(handle, next, set);
     },
     removeCrossProjectDependency: (projectId, taskId, depIndex) => {
       const { data, handle } = get();
@@ -662,21 +716,21 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         ),
       };
       set({ data: next, saveState: "idle" });
-      if (handle) debouncedSave(handle, next, set);
+      if (handle) triggerDebouncedSave(handle, next, set);
     },
     saveTemplate: (template) => {
       const { templates } = get();
       const exists = templates.some((t) => t.id === template.id);
-      set({
-        templates: exists
-          ? templates.map((t) => (t.id === template.id ? template : t))
-          : [...templates, template],
-      });
+      const next = exists
+        ? templates.map((t) => (t.id === template.id ? template : t))
+        : [...templates, template];
+      set({ templates: next });
+      persistTemplates(next);
     },
     deleteTemplate: (templateId) => {
-      set({
-        templates: get().templates.filter((t) => t.id !== templateId),
-      });
+      const next = get().templates.filter((t) => t.id !== templateId);
+      set({ templates: next });
+      persistTemplates(next);
     },
     instantiateTemplate: (templateId, projectId, startDate) => {
       const template = get().templates.find((t) => t.id === templateId);
@@ -729,8 +783,22 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     importWorkspace: async (file) => {
       try {
         const text = await file.text();
-        const data = JSON.parse(text) as WorkspaceData;
-        set({ data: withComputedStatuses(data), saveState: "idle" });
+        const parsed = JSON.parse(text);
+        // Validate with Zod schema
+        const validated = workspaceSchema.parse(parsed.workspace);
+        const data = {
+          workspace: validated,
+          projects: parsed.projects ?? [],
+          people: parsed.people ?? [],
+          labels: parsed.labels ?? [],
+        } as WorkspaceData;
+        const next = withComputedStatuses(data);
+        set({ data: next, saveState: "idle" });
+        // Persist to file system if handle is available
+        const { handle } = get();
+        if (handle) {
+          triggerDebouncedSave(handle, next, set);
+        }
       } catch (error) {
         set({
           error:

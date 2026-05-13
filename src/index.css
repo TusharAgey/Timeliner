@@ -73,10 +73,8 @@ a {
   background: transparent;
 }
 
-@layer utilities {
-  .glass {
-    background: var(--panel);
-    backdrop-filter: blur(18px);
-    box-shadow: 0 20px 60px rgba(2, 8, 23, 0.35);
-  }
+.glass {
+  background: var(--panel);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 20px 60px rgba(2, 8, 23, 0.35);
 }

@@ -4,7 +4,7 @@ import {
   isBefore,
   startOfWeek,
 } from "date-fns";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { fullDate, today } from "../../lib/date";
 import { computeTaskStatus } from "../../lib/status";
 import type { Person, Project, Task } from "../../models/types";
@@ -94,59 +94,82 @@ export const TimelineView = ({
     },
     [],
   );
-  const lanes = projects.map((project, index) => ({
-    side: index === 0 ? ("left" as const) : ("right" as const),
-    project,
-    accentClassName: index === 0 ? "bg-fuchsia-400" : "bg-emerald-400",
-  }));
 
-  const filterTask = (task: Task) => {
-    const status = computeTaskStatus(task);
-    if (filter === "overdue") return status === "Overdue";
-    if (filter === "atRisk")
-      return status === "At Risk" || status === "Delayed";
-    if (filter === "startsToday")
-      return task.startDate === currentDay.toISOString().slice(0, 10);
-    if (priorityFilter !== "all") return task.priority === priorityFilter;
-    return true;
-  };
+  const lanes = useMemo(
+    () =>
+      projects.map((project, index) => ({
+        side: index === 0 ? ("left" as const) : ("right" as const),
+        project,
+        accentClassName: index === 0 ? "bg-fuchsia-400" : "bg-emerald-400",
+      })),
+    [projects],
+  );
 
-  const items = lanes.flatMap((lane) =>
-    lane.project.tasks.filter(filterTask).map((task) => ({
-      lane,
-      task,
-      targetDate: getTaskTargetDate(task),
-    })),
+  const filterTask = useCallback(
+    (task: Task) => {
+      const status = computeTaskStatus(task);
+      if (filter === "overdue") return status === "Overdue";
+      if (filter === "atRisk")
+        return status === "At Risk" || status === "Delayed";
+      if (filter === "startsToday")
+        return task.startDate === currentDay.toISOString().slice(0, 10);
+      if (priorityFilter !== "all") return task.priority === priorityFilter;
+      return true;
+    },
+    [filter, priorityFilter, currentDay],
+  );
+
+  const items = useMemo(
+    () =>
+      lanes.flatMap((lane) =>
+        lane.project.tasks.filter(filterTask).map((task) => ({
+          lane,
+          task,
+          targetDate: getTaskTargetDate(task),
+        })),
+      ),
+    [lanes, filterTask],
   );
 
   const scale = zoomScale[zoom];
-  const scheduledWeekKeys = Array.from(
-    new Set([
-      ...items.map((item) => weekKey(item.targetDate)),
-      weekKey(currentDay),
-    ]),
-  ).sort((a, b) => weekStartTime(a) - weekStartTime(b));
-  const weekIndexByKey = new Map(
-    scheduledWeekKeys.map((key, index) => [key, index]),
-  );
+
+  const { scheduledWeekKeys, weekIndexByKey } = useMemo(() => {
+    const keys = Array.from(
+      new Set([
+        ...items.map((item) => weekKey(item.targetDate)),
+        weekKey(currentDay),
+      ]),
+    ).sort((a, b) => weekStartTime(a) - weekStartTime(b));
+    const indexByKey = new Map(keys.map((key, index) => [key, index]));
+    return { scheduledWeekKeys: keys, weekIndexByKey: indexByKey };
+  }, [items, currentDay]);
+
   const weekSlotHeight = Math.max(scale, CARD_HEIGHT + CARD_GAP);
-  const compactTimeToY = (date: Date) =>
-    (weekIndexByKey.get(weekKey(date)) ?? 0) * weekSlotHeight;
+  const compactTimeToY = useCallback(
+    (date: Date) => (weekIndexByKey.get(weekKey(date)) ?? 0) * weekSlotHeight,
+    [weekIndexByKey, weekSlotHeight],
+  );
+
   const totalHeight = Math.max(scheduledWeekKeys.length * weekSlotHeight, 1);
   const baseTodayY = compactTimeToY(currentDay);
-  const markers = scheduledWeekKeys
-    .filter((key) => key !== weekKey(currentDay))
-    .map((key) => {
-      const markerDate = new Date(`${key}T00:00:00`);
-      const offset = differenceInCalendarDays(markerDate, currentDay);
-      return {
-        offset,
-        label: formatMarkerLabel(offset),
-        y: compactTimeToY(markerDate),
-      };
-    });
 
-  const positionItems = () => {
+  const markers = useMemo(
+    () =>
+      scheduledWeekKeys
+        .filter((key) => key !== weekKey(currentDay))
+        .map((key) => {
+          const markerDate = new Date(`${key}T00:00:00`);
+          const offset = differenceInCalendarDays(markerDate, currentDay);
+          return {
+            offset,
+            label: formatMarkerLabel(offset),
+            y: compactTimeToY(markerDate),
+          };
+        }),
+    [scheduledWeekKeys, currentDay, compactTimeToY],
+  );
+
+  const { leftItems, rightItems } = useMemo(() => {
     const allItems = items.map((item) => {
       const baseY = compactTimeToY(item.targetDate);
       const height = cardHeights[item.task.id] ?? CARD_HEIGHT;
@@ -175,37 +198,53 @@ export const TimelineView = ({
       ...resolveFutureCollisions(futureItems),
     ].sort((a, b) => a.top - b.top);
 
-    const leftItems = resolved.filter((item) => item.lane.side === "left");
-    const rightItems = resolved.filter((item) => item.lane.side === "right");
-    return { leftItems, rightItems };
-  };
+    const left = resolved.filter((item) => item.lane.side === "left");
+    const right = resolved.filter((item) => item.lane.side === "right");
+    return { leftItems: left, rightItems: right };
+  }, [items, cardHeights, compactTimeToY, baseTodayY, currentDay]);
 
-  const { leftItems, rightItems } = positionItems();
-  const minRenderedTop = Math.min(
-    0,
-    ...leftItems.map((item) => item.top),
-    ...rightItems.map((item) => item.top),
-  );
-  const yShift = minRenderedTop < 0 ? Math.abs(minRenderedTop) + CARD_GAP : 0;
-  const todayY = baseTodayY + yShift;
-  const shiftedMarkers = markers.map((marker) => ({
-    ...marker,
-    y: marker.y + yShift,
-  }));
-  const shiftedLeftItems = leftItems.map((item) => ({
-    ...item,
-    top: item.top + yShift,
-  }));
-  const shiftedRightItems = rightItems.map((item) => ({
-    ...item,
-    top: item.top + yShift,
-  }));
-  const renderedHeight = Math.max(
-    totalHeight + yShift,
-    ...shiftedLeftItems.map((item) => item.top + item.height),
-    ...shiftedRightItems.map((item) => item.top + item.height),
-    todayY + 80,
-  );
+  const {
+    yShift,
+    todayY,
+    shiftedMarkers,
+    shiftedLeftItems,
+    shiftedRightItems,
+    renderedHeight,
+  } = useMemo(() => {
+    const minRenderedTop = Math.min(
+      0,
+      ...leftItems.map((item) => item.top),
+      ...rightItems.map((item) => item.top),
+    );
+    const shift = minRenderedTop < 0 ? Math.abs(minRenderedTop) + CARD_GAP : 0;
+    const tY = baseTodayY + shift;
+    const sMarkers = markers.map((marker) => ({
+      ...marker,
+      y: marker.y + shift,
+    }));
+    const sLeftItems = leftItems.map((item) => ({
+      ...item,
+      top: item.top + shift,
+    }));
+    const sRightItems = rightItems.map((item) => ({
+      ...item,
+      top: item.top + shift,
+    }));
+    const rHeight = Math.max(
+      totalHeight + shift,
+      ...sLeftItems.map((item) => item.top + item.height),
+      ...sRightItems.map((item) => item.top + item.height),
+      tY + 80,
+    );
+    return {
+      yShift: shift,
+      todayY: tY,
+      shiftedMarkers: sMarkers,
+      shiftedLeftItems: sLeftItems,
+      shiftedRightItems: sRightItems,
+      renderedHeight: rHeight,
+    };
+  }, [leftItems, rightItems, baseTodayY, markers, totalHeight]);
 
   return (
     <div className="relative h-full overflow-auto scroll-smooth">
@@ -227,7 +266,6 @@ export const TimelineView = ({
           {shiftedMarkers.map((marker) => {
             const markerDate = new Date(currentDay);
             markerDate.setDate(markerDate.getDate() + marker.offset);
-            const y = marker.y;
             const inFocus =
               Math.abs(differenceInCalendarDays(markerDate, currentDay)) <= 3;
             return (
@@ -235,7 +273,7 @@ export const TimelineView = ({
                 key={`row-${marker.offset}`}
                 className={`absolute border-t ${inFocus ? "border-white/6" : "border-white/[0.015]"}`}
                 style={{
-                  top: y,
+                  top: marker.y,
                   left: "calc(50% - 480px)",
                   right: "calc(50% - 480px)",
                 }}
@@ -261,7 +299,7 @@ export const TimelineView = ({
         <div className="pointer-events-none absolute inset-0 z-10">
           {shiftedMarkers.map((marker) => (
             <div
-              key={marker.label}
+              key={`axis-${marker.offset}`}
               className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center"
               style={{
                 top: (() => {
