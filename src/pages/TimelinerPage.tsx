@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+
 import {
   BarChart3,
   ChevronDown,
@@ -15,26 +16,60 @@ import {
   GitBranch,
   Download,
   ClipboardList,
+  SearchX,
+  CheckCircle2,
 } from "lucide-react";
+
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import { EmptyState } from "../components/ui/EmptyState";
+import { TaskCardSkeleton } from "../features/timeline/TaskCardSkeleton";
+
 import { matchesProjectSearch } from "../lib/search";
 import {
   selectActiveTabProjects,
   useWorkspaceStore,
 } from "../store/useWorkspaceStore";
 import { WorkspaceLauncher } from "../features/workspace/WorkspaceLauncher";
-import { TeamModal } from "../features/workspace/TeamModal";
-import { SummaryModal } from "../features/tasks/SummaryModal";
 import { AddTaskModal } from "../features/tasks/AddTaskModal";
 import { TimelineView } from "../features/timeline/TimelineView";
 import { SummaryChips } from "../features/timeline/SummaryChips";
 import { ZoomControls } from "../features/timeline/ZoomControls";
 import { aggregateVisibleSummary } from "../lib/summary";
-import { WorkloadView } from "../features/workspace/WorkloadView";
-import { GanttView } from "../features/timeline/GanttView";
-import { ExportImportModal } from "../features/workspace/ExportImportModal";
-import { TemplatesModal } from "../features/tasks/TemplatesModal";
+import { computeTaskStatus } from "../lib/status";
+
+// Lazy-loaded heavy components
+const SummaryModal = lazy(() =>
+  import("../features/tasks/SummaryModal").then((m) => ({
+    default: m.SummaryModal,
+  })),
+);
+const TeamModal = lazy(() =>
+  import("../features/workspace/TeamModal").then((m) => ({
+    default: m.TeamModal,
+  })),
+);
+const WorkloadView = lazy(() =>
+  import("../features/workspace/WorkloadView").then((m) => ({
+    default: m.WorkloadView,
+  })),
+);
+const GanttView = lazy(() =>
+  import("../features/timeline/GanttView").then((m) => ({
+    default: m.GanttView,
+  })),
+);
+const ExportImportModal = lazy(() =>
+  import("../features/workspace/ExportImportModal").then((m) => ({
+    default: m.ExportImportModal,
+  })),
+);
+const TemplatesModal = lazy(() =>
+  import("../features/tasks/TemplatesModal").then((m) => ({
+    default: m.TemplatesModal,
+  })),
+);
+
 import type {
   PriorityFilter,
   TimelineFilter,
@@ -159,8 +194,15 @@ export const TimelinerPage = () => {
 
   if (loading && !data) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-300">
-        Loading Timeliner…
+      <div className="min-h-screen px-5 py-5 lg:px-8 lg:py-6">
+        <div className="mx-auto max-w-[1600px] rounded-[34px] bg-[rgba(8,17,29,0.72)] p-6 ring-1 ring-white/8 backdrop-blur-xl">
+          <div className="mb-8 h-8 w-48 animate-pulse rounded-md bg-white/8" />
+          <div className="grid grid-cols-2 gap-8">
+            {[1, 2, 3, 4].map((i) => (
+              <TaskCardSkeleton key={i} />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -397,16 +439,20 @@ export const TimelinerPage = () => {
 
         <main className="flex-1 px-6 pb-6 pt-1">
           {ganttViewOpen ? (
-            <GanttView
-              projects={visibleProjects}
-              onClose={() => setGanttViewOpen(false)}
-            />
+            <Suspense fallback={<TaskCardSkeleton />}>
+              <GanttView
+                projects={visibleProjects}
+                onClose={() => setGanttViewOpen(false)}
+              />
+            </Suspense>
           ) : workloadViewOpen ? (
-            <WorkloadView
-              projects={visibleProjects}
-              people={data.people}
-              onClose={() => setWorkloadViewOpen(false)}
-            />
+            <Suspense fallback={<TaskCardSkeleton />}>
+              <WorkloadView
+                projects={visibleProjects}
+                people={data.people}
+                onClose={() => setWorkloadViewOpen(false)}
+              />
+            </Suspense>
           ) : (
             <>
               <div className="grid grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] gap-8 pb-4">
@@ -463,31 +509,82 @@ export const TimelinerPage = () => {
                 })}
               </div>
 
-              {visibleProjects.some((p) => !collapsedProjects.has(p.id)) ? (
-                <TimelineView
-                  projects={visibleProjects.filter(
-                    (p) => !collapsedProjects.has(p.id),
-                  )}
-                  people={data.people}
-                  zoom={zoom}
-                  filter={timelineFilter}
-                  priorityFilter={priorityFilter}
-                  onSaveTask={(projectId, task) => upsertTask(projectId, task)}
-                  onDeleteTask={(projectId, taskId) =>
-                    deleteTask(projectId, taskId)
-                  }
-                />
-              ) : null}
+              {visibleProjects.some((p) => !collapsedProjects.has(p.id))
+                ? (() => {
+                    const uncollapsed = visibleProjects.filter(
+                      (p) => !collapsedProjects.has(p.id),
+                    );
+                    const totalTasks = uncollapsed.reduce(
+                      (sum, p) => sum + p.tasks.length,
+                      0,
+                    );
+                    const allDone = uncollapsed.every((p) =>
+                      p.tasks.every((t) => computeTaskStatus(t) === "Done"),
+                    );
+
+                    if (totalTasks === 0) {
+                      return (
+                        <EmptyState
+                          icon={<ClipboardList className="size-6" />}
+                          title="No tasks in this project"
+                          description="Add your first task to start tracking progress."
+                          action={{
+                            label: "Add Task",
+                            onClick: () => setAddTaskOpen(true),
+                          }}
+                        />
+                      );
+                    }
+
+                    if (searchQuery && totalTasks === 0) {
+                      return (
+                        <EmptyState
+                          icon={<SearchX className="size-6" />}
+                          title="No results found"
+                          description={`No tasks match "${searchQuery}". Try a different search term.`}
+                        />
+                      );
+                    }
+
+                    if (allDone && totalTasks > 0) {
+                      return (
+                        <EmptyState
+                          icon={<CheckCircle2 className="size-6" />}
+                          title="All tasks done!"
+                          description="Great work! All tasks in this view are completed."
+                        />
+                      );
+                    }
+
+                    return (
+                      <TimelineView
+                        projects={uncollapsed}
+                        people={data.people}
+                        zoom={zoom}
+                        filter={timelineFilter}
+                        priorityFilter={priorityFilter}
+                        onSaveTask={(projectId, task) =>
+                          upsertTask(projectId, task)
+                        }
+                        onDeleteTask={(projectId, taskId) =>
+                          deleteTask(projectId, taskId)
+                        }
+                      />
+                    );
+                  })()
+                : null}
             </>
           )}
         </main>
       </div>
 
-      <SummaryModal
-        open={summaryOpen}
-        projects={visibleProjects}
-        onClose={() => setSummaryOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <SummaryModal
+          open={summaryOpen}
+          projects={visibleProjects}
+          onClose={() => setSummaryOpen(false)}
+        />
+      </Suspense>
       <AddTaskModal
         open={addTaskOpen}
         project={primaryProject}
@@ -495,28 +592,34 @@ export const TimelinerPage = () => {
         onSubmit={(projectId, task) => upsertTask(projectId, task)}
         onSubmitNatural={createTaskFromNaturalLanguage}
       />
-      <TeamModal
-        open={teamOpen}
-        people={data.people}
-        onClose={() => setTeamOpen(false)}
-        onSave={upsertPerson}
-        onDelete={deletePerson}
-      />
-      <ExportImportModal
-        open={exportImportOpen}
-        onClose={() => setExportImportOpen(false)}
-        onExport={exportWorkspace}
-        onImport={importWorkspace}
-      />
-      <TemplatesModal
-        open={templatesOpen}
-        templates={templates}
-        projects={visibleProjects}
-        onClose={() => setTemplatesOpen(false)}
-        onSaveTemplate={saveTemplate}
-        onDeleteTemplate={deleteTemplate}
-        onInstantiate={instantiateTemplate}
-      />
+      <Suspense fallback={null}>
+        <TeamModal
+          open={teamOpen}
+          people={data.people}
+          onClose={() => setTeamOpen(false)}
+          onSave={upsertPerson}
+          onDelete={deletePerson}
+        />
+      </Suspense>
+      <Suspense fallback={null}>
+        <ExportImportModal
+          open={exportImportOpen}
+          onClose={() => setExportImportOpen(false)}
+          onExport={exportWorkspace}
+          onImport={importWorkspace}
+        />
+      </Suspense>
+      <Suspense fallback={null}>
+        <TemplatesModal
+          open={templatesOpen}
+          templates={templates}
+          projects={visibleProjects}
+          onClose={() => setTemplatesOpen(false)}
+          onSaveTemplate={saveTemplate}
+          onDeleteTemplate={deleteTemplate}
+          onInstantiate={instantiateTemplate}
+        />
+      </Suspense>
 
       {recentlyDeletedTask ? (
         <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-2xl bg-[#0d1726]/96 px-4 py-3 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">

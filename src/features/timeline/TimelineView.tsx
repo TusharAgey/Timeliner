@@ -108,12 +108,18 @@ export const TimelineView = ({
   const filterTask = useCallback(
     (task: Task) => {
       const status = computeTaskStatus(task);
-      if (filter === "overdue") return status === "Overdue";
-      if (filter === "atRisk")
-        return status === "At Risk" || status === "Delayed";
-      if (filter === "startsToday")
-        return task.startDate === currentDay.toISOString().slice(0, 10);
-      if (priorityFilter !== "all") return task.priority === priorityFilter;
+      // Apply timeline filter first
+      if (filter === "overdue" && status !== "Overdue") return false;
+      if (filter === "atRisk" && status !== "At Risk" && status !== "Delayed")
+        return false;
+      if (
+        filter === "startsToday" &&
+        task.startDate !== currentDay.toISOString().slice(0, 10)
+      )
+        return false;
+      // Apply priority filter (independent of timeline filter)
+      if (priorityFilter !== "all" && task.priority !== priorityFilter)
+        return false;
       return true;
     },
     [filter, priorityFilter, currentDay],

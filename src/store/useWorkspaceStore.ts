@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import { createSeedWorkspace } from "../services/seedData";
 import {
   chooseWorkspaceFolder,
@@ -326,16 +327,15 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       try {
         await saveWorkspaceToHandle(handle, data);
         set({ saveState: "saved" });
+        toast.success("Workspace saved");
       } catch (error) {
-        set({
-          saveState: "error",
-          error:
-            error instanceof Error
-              ? error.message
-              : "Failed to save workspace.",
-        });
+        const message =
+          error instanceof Error ? error.message : "Failed to save workspace.";
+        set({ saveState: "error", error: message });
+        toast.error(message);
       }
     },
+
     setSearchQuery: (value) => set({ searchQuery: value }),
     setActiveTab: (id) => set({ activeTabId: id }),
     setSummaryOpen: (open) => set({ summaryOpen: open }),
@@ -488,6 +488,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         undoStack: undoStack.slice(0, -1),
         redoStack: [...get().redoStack, entry],
       });
+      toast.info(`Undo: ${entry.description}`);
     },
     redo: () => {
       const { redoStack } = get();
@@ -498,7 +499,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         redoStack: redoStack.slice(0, -1),
         undoStack: [...get().undoStack, entry],
       });
+      toast.info(`Redo: ${entry.description}`);
     },
+
     upsertPerson: (person) => {
       const { data, handle } = get();
       if (!data) return;
@@ -553,12 +556,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       const isNew = !prev.projects
         .find((p) => p.id === projectId)
         ?.tasks.some((t) => t.id === task.id);
+      if (isNew) toast.success(`Task "${task.title}" created`);
       get().pushUndo(
         isNew ? `Create "${task.title}"` : `Update "${task.title}"`,
         () => set({ data: prev }),
         () => set({ data: next }),
       );
     },
+
     deleteTask: (projectId, taskId) => {
       const { data, handle } = get();
       if (!data) return;
@@ -579,12 +584,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       };
       set({ data: next, recentlyDeletedTask: { projectId, task } });
       if (handle) triggerDebouncedSave(handle, next, set);
+      toast.info(`Task "${task.title}" deleted (undo available)`);
       get().pushUndo(
         `Delete "${task.title}"`,
         () => set({ data: prev }),
         () => set({ data: next }),
       );
     },
+
     undoDeleteTask: () => {
       const { data, handle, recentlyDeletedTask } = get();
       if (!data || !recentlyDeletedTask) return;
