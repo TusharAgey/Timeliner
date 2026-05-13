@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ExternalLink, Trash2 } from "lucide-react";
+
 import { Button } from "../../components/ui/Button";
 import { fullDate } from "../../lib/date";
 import { computeTaskStatus, statusTone } from "../../lib/status";
@@ -98,9 +99,27 @@ export const TaskCard = ({
     ? "-translate-y-1 bg-white/[0.07] shadow-[0_22px_54px_rgba(2,8,23,0.36)] ring-white/18"
     : "bg-white/[0.035] shadow-[0_10px_24px_rgba(2,8,23,0.18)] ring-white/6 hover:-translate-y-1 hover:bg-white/[0.05] hover:shadow-[0_16px_32px_rgba(2,8,23,0.26)]";
 
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        if (!editing) {
+          setEditing(true);
+          onEditingChange?.(true);
+          setDraft(task);
+        }
+      }
+    },
+    [editing, onEditingChange, task],
+  );
+
   return (
     <article
       className={`group relative overflow-visible rounded-[20px] p-3 ring-1 transition-all duration-200 before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 ${laneGradient} ${editState} ${attentionClass}`}
+      tabIndex={0}
+      role="button"
+      aria-label={`Task: ${task.title}, Status: ${status}, Priority: ${task.priority}`}
+      onKeyDown={handleKeyDown}
     >
       <div
         className={`absolute top-1/2 ${side === "left" ? "right-0 translate-x-full" : "left-0 -translate-x-full"} flex -translate-y-1/2 items-center`}

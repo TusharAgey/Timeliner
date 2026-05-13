@@ -241,6 +241,7 @@ export const TimelinerPage = () => {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search tasks, people, Jira, labels, status"
+              aria-label="Search tasks"
             />
           </div>
           <div className="flex items-center justify-start gap-2 lg:justify-end">
@@ -250,7 +251,7 @@ export const TimelinerPage = () => {
               onClick={undo}
               disabled={undoStack.length === 0}
               className="rounded-full p-2"
-              title="Undo"
+              aria-label="Undo last action"
             >
               <Undo2 className="size-4" />
             </Button>
@@ -259,10 +260,11 @@ export const TimelinerPage = () => {
               onClick={redo}
               disabled={redoStack.length === 0}
               className="rounded-full p-2"
-              title="Redo"
+              aria-label="Redo last undone action"
             >
               <Redo2 className="size-4" />
             </Button>
+
             <Button
               variant="secondary"
               onClick={() => setSummaryOpen(true)}
@@ -280,12 +282,20 @@ export const TimelinerPage = () => {
                 variant="secondary"
                 className="rounded-full px-3"
                 onClick={() => setMenuOpen((value) => !value)}
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
+                aria-haspopup="true"
               >
                 <MoreHorizontal className="size-4" />
               </Button>
               {menuOpen ? (
-                <div className="absolute right-0 top-12 z-30 min-w-52 rounded-2xl bg-[#0d1726] p-2 shadow-2xl ring-1 ring-white/10">
+                <div
+                  className="absolute right-0 top-12 z-30 min-w-52 rounded-2xl bg-[#0d1726] p-2 shadow-2xl ring-1 ring-white/10"
+                  role="menu"
+                  aria-label="Workspace actions"
+                >
                   <button
+                    role="menuitem"
                     onClick={() => {
                       openWorkspace();
                       setMenuOpen(false);
@@ -295,6 +305,7 @@ export const TimelinerPage = () => {
                     <FolderOpen className="size-4" /> Open workspace
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       saveNow();
                       setMenuOpen(false);
@@ -304,6 +315,7 @@ export const TimelinerPage = () => {
                     <Save className="size-4" /> {saveLabel[saveState]}
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setSummaryOpen(true);
                       setMenuOpen(false);
@@ -313,6 +325,7 @@ export const TimelinerPage = () => {
                     <BarChart3 className="size-4" /> Project intelligence
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setTeamOpen(true);
                       setMenuOpen(false);
@@ -322,6 +335,7 @@ export const TimelinerPage = () => {
                     <Users className="size-4" /> Manage team
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setWorkloadViewOpen(true);
                       setMenuOpen(false);
@@ -331,6 +345,7 @@ export const TimelinerPage = () => {
                     <LayoutGrid className="size-4" /> Workload view
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setGanttViewOpen(true);
                       setMenuOpen(false);
@@ -340,6 +355,7 @@ export const TimelinerPage = () => {
                     <GitBranch className="size-4" /> Gantt chart
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setTemplatesOpen(true);
                       setMenuOpen(false);
@@ -349,6 +365,7 @@ export const TimelinerPage = () => {
                     <ClipboardList className="size-4" /> Task templates
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setExportImportOpen(true);
                       setMenuOpen(false);
@@ -365,7 +382,11 @@ export const TimelinerPage = () => {
 
         <div className="px-6 pb-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <nav className="inline-flex rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/8">
+            <nav
+              className="inline-flex rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/8"
+              role="tablist"
+              aria-label="Project tabs"
+            >
               {data.workspace.tabs.map((tab) => {
                 const tabProjects = tab.projectIds
                   .map((pid) => data.projects.find((p) => p.id === pid))
@@ -378,6 +399,8 @@ export const TimelinerPage = () => {
                 return (
                   <button
                     key={tab.id}
+                    role="tab"
+                    aria-selected={activeTabId === tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`rounded-2xl px-4 py-2 text-sm transition ${activeTabId === tab.id ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : "text-slate-400 hover:text-slate-200"}`}
                   >
@@ -389,6 +412,7 @@ export const TimelinerPage = () => {
                 );
               })}
             </nav>
+
             <ZoomControls value={zoom} onChange={setZoom} />
           </div>
           <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -411,6 +435,8 @@ export const TimelinerPage = () => {
                         ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
                         : "text-slate-400 hover:text-slate-200"
                     }`}
+                    aria-label={`Filter by ${option.label} priority`}
+                    aria-pressed={priorityFilter === option.value}
                   >
                     {option.color ? (
                       <span
@@ -428,6 +454,7 @@ export const TimelinerPage = () => {
                   <button
                     onClick={clearTaskSelection}
                     className="ml-2 rounded-full bg-white/8 px-2 py-0.5 text-xs hover:bg-white/14"
+                    aria-label="Clear task selection"
                   >
                     Clear
                   </button>
@@ -478,6 +505,11 @@ export const TimelinerPage = () => {
                               })
                             }
                             className="rounded-full p-1 text-slate-400 transition hover:bg-white/8 hover:text-white"
+                            aria-label={
+                              isCollapsed
+                                ? `Expand ${project.name}`
+                                : `Collapse ${project.name}`
+                            }
                           >
                             {isCollapsed ? (
                               <ChevronRight className="size-4" />
