@@ -210,7 +210,6 @@ export const TimelineView = ({
   }, [items, cardHeights, compactTimeToY, baseTodayY, currentDay]);
 
   const {
-    yShift,
     todayY,
     shiftedMarkers,
     shiftedLeftItems,

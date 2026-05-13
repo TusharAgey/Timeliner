@@ -3,7 +3,6 @@ import {
   makeAssigneeHistory,
   makeAccountableHistory,
   getAssigneeHistory,
-  getAccountableHistory,
   getCurrentAssignee,
   getCurrentAccountable,
   getPreviousAssignees,
