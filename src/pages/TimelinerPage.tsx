@@ -1,24 +1,24 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 
-import {
-  BarChart3,
-  ChevronDown,
-  ChevronRight,
-  FolderOpen,
-  MoreHorizontal,
-  Users,
-  Plus,
-  Save,
-  Search,
-  Undo2,
-  Redo2,
-  LayoutGrid,
-  GitBranch,
-  Download,
-  ClipboardList,
-  SearchX,
-  CheckCircle2,
-} from "lucide-react";
+import BarChart3 from "lucide-react/dist/esm/icons/bar-chart-3";
+import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
+import ChevronRight from "lucide-react/dist/esm/icons/chevron-right";
+import FolderOpen from "lucide-react/dist/esm/icons/folder-open";
+import MoreHorizontal from "lucide-react/dist/esm/icons/more-horizontal";
+import Users from "lucide-react/dist/esm/icons/users";
+import Plus from "lucide-react/dist/esm/icons/plus";
+import Save from "lucide-react/dist/esm/icons/save";
+import Search from "lucide-react/dist/esm/icons/search";
+import Undo2 from "lucide-react/dist/esm/icons/undo-2";
+import Redo2 from "lucide-react/dist/esm/icons/redo-2";
+import LayoutGrid from "lucide-react/dist/esm/icons/layout-grid";
+import GitBranch from "lucide-react/dist/esm/icons/git-branch";
+import Download from "lucide-react/dist/esm/icons/download";
+import ClipboardList from "lucide-react/dist/esm/icons/clipboard-list";
+import SearchX from "lucide-react/dist/esm/icons/search-x";
+import CheckCircle2 from "lucide-react/dist/esm/icons/check-circle-2";
+import Flag from "lucide-react/dist/esm/icons/flag";
+import Settings from "lucide-react/dist/esm/icons/settings";
 
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -26,12 +26,8 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { TaskCardSkeleton } from "../features/timeline/TaskCardSkeleton";
 
 import { matchesProjectSearch } from "../lib/search";
-import {
-  selectActiveTabProjects,
-  useWorkspaceStore,
-} from "../store/useWorkspaceStore";
+import { useWorkspaceStore } from "../store/useWorkspaceStore";
 import { WorkspaceLauncher } from "../features/workspace/WorkspaceLauncher";
-import { AddTaskModal } from "../features/tasks/AddTaskModal";
 import { TimelineView } from "../features/timeline/TimelineView";
 import { SummaryChips } from "../features/timeline/SummaryChips";
 import { ZoomControls } from "../features/timeline/ZoomControls";
@@ -67,6 +63,26 @@ const ExportImportModal = lazy(() =>
 const TemplatesModal = lazy(() =>
   import("../features/tasks/TemplatesModal").then((m) => ({
     default: m.TemplatesModal,
+  })),
+);
+const MilestoneModal = lazy(() =>
+  import("../features/tasks/MilestoneModal").then((m) => ({
+    default: m.MilestoneModal,
+  })),
+);
+const DependencyGraphView = lazy(() =>
+  import("../features/tasks/DependencyGraphView").then((m) => ({
+    default: m.DependencyGraphView,
+  })),
+);
+const AddTaskModal = lazy(() =>
+  import("../features/tasks/AddTaskModal").then((m) => ({
+    default: m.AddTaskModal,
+  })),
+);
+const ManageProjectsModal = lazy(() =>
+  import("../features/workspace/ManageProjectsModal").then((m) => ({
+    default: m.ManageProjectsModal,
   })),
 );
 
@@ -113,8 +129,6 @@ export const TimelinerPage = () => {
     saveState,
     searchQuery,
     setSearchQuery,
-    activeTabId,
-    setActiveTab,
     summaryOpen,
     setSummaryOpen,
     addTaskOpen,
@@ -143,6 +157,8 @@ export const TimelinerPage = () => {
     setWorkloadViewOpen,
     ganttViewOpen,
     setGanttViewOpen,
+    dependencyGraphOpen,
+    setDependencyGraphOpen,
     exportImportOpen,
     setExportImportOpen,
     exportWorkspace,
@@ -151,6 +167,17 @@ export const TimelinerPage = () => {
     saveTemplate,
     deleteTemplate,
     instantiateTemplate,
+    milestoneModalOpen,
+    setMilestoneModalOpen,
+    upsertMilestone,
+    deleteMilestone,
+    visibleProjectIds,
+    setVisibleProjects,
+    createProject,
+    updateProject,
+    deleteProject,
+    manageProjectsOpen,
+    setManageProjectsOpen,
   } = useWorkspaceStore();
 
   useEffect(() => {
@@ -160,11 +187,17 @@ export const TimelinerPage = () => {
   }, [recentlyDeletedTask, clearRecentlyDeletedTask]);
 
   const visibleProjects = useMemo(() => {
-    const current = selectActiveTabProjects(data, activeTabId);
-    return current.map((project) => matchesProjectSearch(project, searchQuery));
-  }, [data, activeTabId, searchQuery]);
+    const current = visibleProjectIds
+      .map((id) => data?.projects.find((p) => p.id === id))
+      .filter(Boolean) as typeof data.projects;
+    return current.map((project) =>
+      matchesProjectSearch(
+        project as Parameters<typeof matchesProjectSearch>[0],
+        searchQuery,
+      ),
+    );
+  }, [data, visibleProjectIds, searchQuery]);
 
-  const primaryProject = visibleProjects[0] ?? null;
   const insight = aggregateVisibleSummary(visibleProjects);
   const summaryChips = [
     {
@@ -357,12 +390,42 @@ export const TimelinerPage = () => {
                   <button
                     role="menuitem"
                     onClick={() => {
+                      setDependencyGraphOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
+                  >
+                    <GitBranch className="size-4" /> Dependency graph
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
                       setTemplatesOpen(true);
                       setMenuOpen(false);
                     }}
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
                   >
                     <ClipboardList className="size-4" /> Task templates
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setMilestoneModalOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
+                  >
+                    <Flag className="size-4" /> Milestones
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setManageProjectsOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
+                  >
+                    <Settings className="size-4" /> Manage projects
                   </button>
                   <button
                     role="menuitem"
@@ -382,36 +445,89 @@ export const TimelinerPage = () => {
 
         <div className="px-6 pb-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <nav
-              className="inline-flex rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/8"
-              role="tablist"
-              aria-label="Project tabs"
-            >
-              {data.workspace.tabs.map((tab) => {
-                const tabProjects = tab.projectIds
-                  .map((pid) => data.projects.find((p) => p.id === pid))
-                  .filter(Boolean);
+            <div className="flex items-center gap-2">
+              {/* Left project picker */}
+              <div className="inline-flex items-center gap-2 rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/8">
+                <div
+                  className={`h-2 w-2 rounded-full ml-2 ${visibleProjectIds[0] ? "bg-violet-400" : "bg-slate-600"}`}
+                />
+                <select
+                  value={visibleProjectIds[0] ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) {
+                      setVisibleProjects(visibleProjectIds.slice(1));
+                    } else if (val === visibleProjectIds[1]) {
+                      // Swap
+                      setVisibleProjects([
+                        visibleProjectIds[1]!,
+                        visibleProjectIds[0]!,
+                      ]);
+                    } else {
+                      setVisibleProjects([val, ...visibleProjectIds.slice(1)]);
+                    }
+                  }}
+                  className="bg-transparent text-sm text-white outline-none min-w-[140px]"
+                  aria-label="Left project"
+                >
+                  {visibleProjectIds[0] ? null : (
+                    <option value="" className="bg-[#0d1726]">
+                      – Pick project –
+                    </option>
+                  )}
+                  {data.projects
+                    .filter((p) => p.id !== visibleProjectIds[1])
+                    .map((p) => (
+                      <option key={p.id} value={p.id} className="bg-[#0d1726]">
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
 
-                const taskCount = tabProjects.reduce(
-                  (sum, p) => sum + (p?.tasks.length ?? 0),
-                  0,
-                );
-                return (
-                  <button
-                    key={tab.id}
-                    role="tab"
-                    aria-selected={activeTabId === tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`rounded-2xl px-4 py-2 text-sm transition ${activeTabId === tab.id ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : "text-slate-400 hover:text-slate-200"}`}
-                  >
-                    {tab.name}
-                    <span className="ml-2 rounded-full bg-white/8 px-2 py-0.5 text-[11px]">
-                      {taskCount}
-                    </span>
-                  </button>
-                );
-              })}
-            </nav>
+              {/* Right project picker */}
+              <div className="inline-flex items-center gap-2 rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/8">
+                <div
+                  className={`h-2 w-2 rounded-full ml-2 ${visibleProjectIds[1] ? "bg-cyan-400" : "bg-slate-600"}`}
+                />
+                <select
+                  value={visibleProjectIds[1] ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) {
+                      setVisibleProjects(visibleProjectIds.slice(0, 1));
+                    } else {
+                      setVisibleProjects([
+                        ...visibleProjectIds.slice(0, 1),
+                        val,
+                      ]);
+                    }
+                  }}
+                  className="bg-transparent text-sm text-white outline-none min-w-[140px]"
+                  aria-label="Right project"
+                >
+                  <option value="" className="bg-[#0d1726]">
+                    – None –
+                  </option>
+                  {data.projects
+                    .filter((p) => p.id !== visibleProjectIds[0])
+                    .map((p) => (
+                      <option key={p.id} value={p.id} className="bg-[#0d1726]">
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* New project quick button */}
+              <button
+                onClick={() => setManageProjectsOpen(true)}
+                className="rounded-2xl px-3 py-2 text-sm text-slate-400 transition hover:bg-white/8 hover:text-white ring-1 ring-white/8"
+                aria-label="New project"
+              >
+                <Plus className="size-4" />
+              </button>
+            </div>
 
             <ZoomControls value={zoom} onChange={setZoom} />
           </div>
@@ -465,7 +581,14 @@ export const TimelinerPage = () => {
         </div>
 
         <main className="flex-1 px-6 pb-6 pt-1">
-          {ganttViewOpen ? (
+          {dependencyGraphOpen ? (
+            <Suspense fallback={<TaskCardSkeleton />}>
+              <DependencyGraphView
+                projects={visibleProjects}
+                onClose={() => setDependencyGraphOpen(false)}
+              />
+            </Suspense>
+          ) : ganttViewOpen ? (
             <Suspense fallback={<TaskCardSkeleton />}>
               <GanttView
                 projects={visibleProjects}
@@ -592,6 +715,7 @@ export const TimelinerPage = () => {
                       <TimelineView
                         projects={uncollapsed}
                         people={data.people}
+                        milestones={uncollapsed.flatMap((p) => p.milestones)}
                         zoom={zoom}
                         filter={timelineFilter}
                         priorityFilter={priorityFilter}
@@ -617,13 +741,15 @@ export const TimelinerPage = () => {
           onClose={() => setSummaryOpen(false)}
         />
       </Suspense>
-      <AddTaskModal
-        open={addTaskOpen}
-        project={primaryProject}
-        onClose={() => setAddTaskOpen(false)}
-        onSubmit={(projectId, task) => upsertTask(projectId, task)}
-        onSubmitNatural={createTaskFromNaturalLanguage}
-      />
+      <Suspense fallback={null}>
+        <AddTaskModal
+          open={addTaskOpen}
+          projects={visibleProjects}
+          onClose={() => setAddTaskOpen(false)}
+          onSubmit={(projectId, task) => upsertTask(projectId, task)}
+          onSubmitNatural={createTaskFromNaturalLanguage}
+        />
+      </Suspense>
       <Suspense fallback={null}>
         <TeamModal
           open={teamOpen}
@@ -650,6 +776,29 @@ export const TimelinerPage = () => {
           onSaveTemplate={saveTemplate}
           onDeleteTemplate={deleteTemplate}
           onInstantiate={instantiateTemplate}
+        />
+      </Suspense>
+      <Suspense fallback={null}>
+        <MilestoneModal
+          open={milestoneModalOpen}
+          projects={visibleProjects}
+          onClose={() => setMilestoneModalOpen(false)}
+          onSaveMilestone={upsertMilestone}
+          onDeleteMilestone={deleteMilestone}
+        />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <ManageProjectsModal
+          open={manageProjectsOpen}
+          projects={data.projects}
+          visibleProjectIds={visibleProjectIds}
+          onClose={() => setManageProjectsOpen(false)}
+          onCreateProject={createProject}
+          onUpdateProject={updateProject}
+          onDeleteProject={(id) => {
+            deleteProject(id);
+          }}
         />
       </Suspense>
 

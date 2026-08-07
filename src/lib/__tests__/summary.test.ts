@@ -40,6 +40,7 @@ const makeTask = (overrides: Record<string, unknown> = {}) => ({
   priority: "Medium" as const,
   labels: [],
   blockedReason: "",
+  milestoneId: "",
   dependencies: [],
   crossProjectDependencies: [],
   status: "Not Started" as const,
@@ -82,15 +83,21 @@ describe("projectSummary", () => {
   });
 
   it("counts at-risk and delayed as atRisk", () => {
+    const futureEnd = new Date();
+    futureEnd.setDate(futureEnd.getDate() + 20);
+    const futureEndStr = futureEnd.toISOString().slice(0, 10);
+    const futureStart = new Date();
+    futureStart.setDate(futureStart.getDate() - 10);
+    const futureStartStr = futureStart.toISOString().slice(0, 10);
     const project = makeProject({
       tasks: [
         makeTask({ blockedReason: "Blocked" }),
         // Task with dates that make it "Delayed" (not past end date, but behind)
         makeTask({
-          startDate: "2026-05-01",
-          endDate: "2026-05-20",
-          expectedStartDate: "2026-05-01",
-          expectedEndDate: "2026-05-20",
+          startDate: futureStartStr,
+          endDate: futureEndStr,
+          expectedStartDate: futureStartStr,
+          expectedEndDate: futureEndStr,
           progressPercent: 10,
         }),
       ],
@@ -101,7 +108,13 @@ describe("projectSummary", () => {
   it("counts milestones", () => {
     const project = makeProject({
       milestones: [
-        { id: "m1", title: "M1", date: "2026-06-01", description: "" },
+        {
+          id: "m1",
+          title: "M1",
+          date: "2026-06-01",
+          description: "",
+          color: "",
+        },
       ],
     });
     expect(projectSummary(project).milestoneCount).toBe(1);

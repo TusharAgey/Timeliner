@@ -18,3 +18,10 @@ export const debounce = <TArgs extends unknown[]>(
 
 export const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+export const slugify = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64) || "untitled";

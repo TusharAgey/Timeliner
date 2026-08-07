@@ -7,7 +7,7 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { fullDate, today } from "../../lib/date";
 import { computeTaskStatus } from "../../lib/status";
-import type { Person, Project, Task } from "../../models/types";
+import type { Milestone, Person, Project, Task } from "../../models/types";
 import { TaskCard } from "./TaskCard";
 import type {
   PriorityFilter,
@@ -55,6 +55,7 @@ const formatMarkerLabel = (offset: number) => {
 type TimelineViewProps = {
   projects: Project[];
   people: Person[];
+  milestones: Milestone[];
   zoom: TimelineZoom;
   filter?: TimelineFilter;
   priorityFilter?: PriorityFilter;
@@ -65,6 +66,7 @@ type TimelineViewProps = {
 export const TimelineView = ({
   projects,
   people,
+  milestones,
   zoom,
   filter = "all",
   priorityFilter = "all",
@@ -74,6 +76,7 @@ export const TimelineView = ({
   const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const currentDay = today();
+  const allTasks = useMemo(() => projects.flatMap((p) => p.tasks), [projects]);
   const measureCard = useCallback(
     (taskId: string) => (node: HTMLDivElement | null) => {
       if (!node) return undefined;
@@ -346,6 +349,8 @@ export const TimelineView = ({
                   <TaskCard
                     task={item.task}
                     people={people}
+                    milestones={milestones}
+                    allTasks={allTasks}
                     side="left"
                     accentClassName={item.lane.accentClassName}
                     onSave={(task) => onSaveTask(item.lane.project.id, task)}
@@ -375,6 +380,8 @@ export const TimelineView = ({
                   <TaskCard
                     task={item.task}
                     people={people}
+                    milestones={milestones}
+                    allTasks={allTasks}
                     side="right"
                     accentClassName={item.lane.accentClassName}
                     onSave={(task) => onSaveTask(item.lane.project.id, task)}

@@ -16,6 +16,7 @@ export const milestoneSchema = z.object({
   title: z.string(),
   date: z.string(),
   description: z.string().default(""),
+  color: z.string().default(""),
 });
 
 export const taskAssigneeSchema = z.object({
@@ -76,6 +77,7 @@ export const taskSchema = z.object({
   priority: taskPrioritySchema,
   labels: z.array(z.string()).default([]),
   blockedReason: z.string().default(""),
+  milestoneId: z.string().default(""),
   dependencies: z.array(z.string()).default([]),
   crossProjectDependencies: z.array(crossProjectDependencySchema).default([]),
   status: taskStatusSchema.optional(),

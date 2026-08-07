@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import { Input, Textarea } from "../../components/ui/Input";
@@ -14,7 +15,7 @@ import {
 
 type AddTaskModalProps = {
   open: boolean;
-  project: Project | null;
+  projects: Project[];
   onClose: () => void;
   onSubmit: (projectId: string, task: Task) => void;
   onSubmitNatural: (projectId: string, input: string) => void;
@@ -36,6 +37,7 @@ const emptyTask = (): Task => ({
   priority: "Medium",
   labels: [],
   blockedReason: "",
+  milestoneId: "",
   dependencies: [],
   crossProjectDependencies: [],
   status: "Not Started",
@@ -45,7 +47,7 @@ const emptyTask = (): Task => ({
 
 export const AddTaskModal = ({
   open,
-  project,
+  projects,
   onClose,
   onSubmit,
   onSubmitNatural,
@@ -54,13 +56,21 @@ export const AddTaskModal = ({
     "Add API migration for Ravi next Monday to Apr 30 jira ENG-123",
   );
   const [manual, setManual] = useState<Task>(emptyTask());
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+
+  const effectiveProjectId =
+    selectedProjectId && projects.some((p) => p.id === selectedProjectId)
+      ? selectedProjectId
+      : (projects[0]?.id ?? "");
+
+  const project = projects.find((p) => p.id === effectiveProjectId) ?? null;
 
   const preview = useMemo(
     () => parseNaturalLanguageTask(naturalInput),
     [naturalInput],
   );
 
-  if (!project) return null;
+  if (!project || projects.length === 0) return null;
 
   return (
     <Modal
@@ -69,6 +79,25 @@ export const AddTaskModal = ({
       title="Add task"
       description={`Add work into ${project.name} with quick parsing or manual entry.`}
     >
+      {/* Project selector */}
+      {projects.length > 1 ? (
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-white/[0.035] p-2 ring-1 ring-white/8">
+          <ChevronDown className="ml-2 size-4 text-slate-400" />
+          <select
+            value={effectiveProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            className="flex-1 bg-transparent text-sm text-white outline-none"
+            aria-label="Select project"
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id} className="bg-[#0d1726]">
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="space-y-3 rounded-2xl border border-white/10 bg-white/4 p-4">
           <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">

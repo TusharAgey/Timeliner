@@ -4,13 +4,14 @@ import { createSeedWorkspace } from "../services/seedData";
 import {
   chooseWorkspaceFolder,
   createWorkspaceScaffold,
+  deleteJson,
   getPersistedWorkspaceHandle,
   isFileSystemSupported,
   loadWorkspaceFromHandle,
   saveWorkspaceToHandle,
   type WorkspaceFolderHandle,
 } from "../services/fileSystem";
-import { debounce, uid } from "../lib/utils";
+import { debounce, slugify, uid } from "../lib/utils";
 import { computeTaskStatus } from "../lib/status";
 import { parseNaturalLanguageTask } from "../lib/parser";
 import {
@@ -19,6 +20,7 @@ import {
   normalizeAssignees,
 } from "../lib/assignees";
 import type {
+  Milestone,
   Person,
   Project,
   Task,
@@ -65,7 +67,11 @@ type WorkspaceStore = {
   templates: TaskTemplate[];
   workloadViewOpen: boolean;
   ganttViewOpen: boolean;
+  dependencyGraphOpen: boolean;
   exportImportOpen: boolean;
+  milestoneModalOpen: boolean;
+  manageProjectsOpen: boolean;
+  visibleProjectIds: string[];
   // Actions
   init: () => Promise<void>;
   createWorkspace: () => Promise<void>;
@@ -122,9 +128,19 @@ type WorkspaceStore = {
   ) => Task | null;
   setWorkloadViewOpen: (open: boolean) => void;
   setGanttViewOpen: (open: boolean) => void;
+  setDependencyGraphOpen: (open: boolean) => void;
   setExportImportOpen: (open: boolean) => void;
+  setMilestoneModalOpen: (open: boolean) => void;
+  upsertMilestone: (projectId: string, milestone: Milestone) => void;
+  deleteMilestone: (projectId: string, milestoneId: string) => void;
   exportWorkspace: () => void;
   importWorkspace: (file: File) => Promise<void>;
+  // Project management
+  setVisibleProjects: (ids: string[]) => void;
+  createProject: (name: string, description?: string) => void;
+  updateProject: (project: Project) => void;
+  deleteProject: (projectId: string) => Promise<void>;
+  setManageProjectsOpen: (open: boolean) => void;
 };
 
 const withComputedStatuses = (data: WorkspaceData): WorkspaceData => ({
@@ -188,7 +204,9 @@ const loadPersistedPrefs = () => {
         timelineFilter: prefs.timelineFilter ?? "all",
       };
     }
-  } catch {}
+  } catch {
+    // localStorage may be unavailable (e.g. private browsing); use defaults
+  }
   return { zoom: "month" as const, timelineFilter: "all" as const };
 };
 
@@ -198,7 +216,26 @@ const savePrefs = (zoom: string, timelineFilter: string) => {
       "timeliner-prefs",
       JSON.stringify({ zoom, timelineFilter }),
     );
-  } catch {}
+  } catch {
+    // localStorage may be unavailable; silently continue
+  }
+};
+
+const VISIBLE_PROJECTS_KEY = "timeliner-visible-projects";
+const loadPersistedVisibleProjects = (): string[] | null => {
+  try {
+    const saved = localStorage.getItem(VISIBLE_PROJECTS_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+};
+const persistVisibleProjects = (ids: string[]) => {
+  try {
+    localStorage.setItem(VISIBLE_PROJECTS_KEY, JSON.stringify(ids));
+  } catch {
+    // localStorage may be unavailable; silently continue
+  }
 };
 
 // Persist templates to localStorage so they survive page refreshes
@@ -214,7 +251,9 @@ const loadPersistedTemplates = (): TaskTemplate[] => {
 const persistTemplates = (templates: TaskTemplate[]) => {
   try {
     localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(templates));
-  } catch {}
+  } catch {
+    // localStorage may be unavailable; silently continue
+  }
 };
 
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
@@ -241,7 +280,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     templates: loadPersistedTemplates(),
     workloadViewOpen: false,
     ganttViewOpen: false,
+    dependencyGraphOpen: false,
     exportImportOpen: false,
+    milestoneModalOpen: false,
+    manageProjectsOpen: false,
+    visibleProjectIds: loadPersistedVisibleProjects() ?? [],
     init: async () => {
       set({ loading: true, error: null, fsSupported: isFileSystemSupported() });
       try {
@@ -253,12 +296,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         const loaded = withComputedStatuses(
           await loadWorkspaceFromHandle(handle),
         );
+        const visibleProjects = loadPersistedVisibleProjects();
+        const firstTab = loaded.workspace.tabs[0];
+        const seededVisible =
+          visibleProjects ??
+          (firstTab
+            ? firstTab.projectIds.slice(0, 2)
+            : loaded.workspace.projectIds.slice(0, 2));
         set({
           data: loaded,
           handle,
           loading: false,
           activeTabId: loaded.workspace.tabs[0]?.id ?? null,
           selectedProjectId: loaded.workspace.projectIds[0] ?? null,
+          visibleProjectIds: seededVisible,
         });
       } catch (error) {
         set({
@@ -276,11 +327,16 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         const handle = await chooseWorkspaceFolder();
         const seeded = withComputedStatuses(createSeedWorkspace());
         await createWorkspaceScaffold(handle, seeded);
+        const firstTab = seeded.workspace.tabs[0];
+        const seededVisible = firstTab
+          ? firstTab.projectIds.slice(0, 2)
+          : seeded.workspace.projectIds.slice(0, 2);
         set({
           data: seeded,
           handle,
           activeTabId: seeded.workspace.tabs[0]?.id ?? null,
           selectedProjectId: seeded.workspace.projectIds[0] ?? null,
+          visibleProjectIds: seededVisible,
           error: null,
           loading: false,
           saveState: "saved",
@@ -302,11 +358,16 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         const loaded = withComputedStatuses(
           await loadWorkspaceFromHandle(handle),
         );
+        const firstTab = loaded.workspace.tabs[0];
+        const seededVisible = firstTab
+          ? firstTab.projectIds.slice(0, 2)
+          : loaded.workspace.projectIds.slice(0, 2);
         set({
           data: loaded,
           handle,
           activeTabId: loaded.workspace.tabs[0]?.id ?? null,
           selectedProjectId: loaded.workspace.projectIds[0] ?? null,
+          visibleProjectIds: seededVisible,
           error: null,
           loading: false,
         });
@@ -638,6 +699,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         priority: draft.priority ?? "Medium",
         labels: draft.labels ?? [],
         blockedReason: draft.blockedReason ?? "",
+        milestoneId: "",
         dependencies: draft.dependencies ?? [],
         crossProjectDependencies: [],
         status: "Not Started",
@@ -761,6 +823,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         priority: template.priority,
         labels: template.labels,
         blockedReason: "",
+        milestoneId: "",
         dependencies: [],
         crossProjectDependencies: [],
         status: "Not Started",
@@ -773,7 +836,57 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     },
     setWorkloadViewOpen: (open) => set({ workloadViewOpen: open }),
     setGanttViewOpen: (open) => set({ ganttViewOpen: open }),
+    setDependencyGraphOpen: (open) => set({ dependencyGraphOpen: open }),
     setExportImportOpen: (open) => set({ exportImportOpen: open }),
+    setMilestoneModalOpen: (open) => set({ milestoneModalOpen: open }),
+    upsertMilestone: (projectId, milestone) => {
+      const { data, handle } = get();
+      if (!data) return;
+      const next = {
+        ...data,
+        projects: data.projects.map((project) =>
+          project.id !== projectId
+            ? project
+            : {
+                ...project,
+                milestones: project.milestones.some(
+                  (m) => m.id === milestone.id,
+                )
+                  ? project.milestones.map((m) =>
+                      m.id === milestone.id ? milestone : m,
+                    )
+                  : [...project.milestones, milestone],
+              },
+        ),
+      };
+      set({ data: next, saveState: "idle" });
+      if (handle) triggerDebouncedSave(handle, next, set);
+    },
+    deleteMilestone: (projectId, milestoneId) => {
+      const { data, handle } = get();
+      if (!data) return;
+      // Also unlink all tasks that reference this milestone
+      const next = {
+        ...data,
+        projects: data.projects.map((project) =>
+          project.id !== projectId
+            ? project
+            : {
+                ...project,
+                milestones: project.milestones.filter(
+                  (m) => m.id !== milestoneId,
+                ),
+                tasks: project.tasks.map((task) =>
+                  task.milestoneId === milestoneId
+                    ? { ...task, milestoneId: "" }
+                    : task,
+                ),
+              },
+        ),
+      };
+      set({ data: next, saveState: "idle" });
+      if (handle) triggerDebouncedSave(handle, next, set);
+    },
     exportWorkspace: () => {
       const { data } = get();
       if (!data) return;
@@ -800,7 +913,15 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
           labels: parsed.labels ?? [],
         } as WorkspaceData;
         const next = withComputedStatuses(data);
-        set({ data: next, saveState: "idle" });
+        const firstTab = next.workspace.tabs[0];
+        const seededVisible = firstTab
+          ? firstTab.projectIds.slice(0, 2)
+          : next.workspace.projectIds.slice(0, 2);
+        set({
+          data: next,
+          saveState: "idle",
+          visibleProjectIds: seededVisible,
+        });
         // Persist to file system if handle is available
         const { handle } = get();
         if (handle) {
@@ -815,6 +936,116 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         });
       }
     },
+    // Project management
+    setVisibleProjects: (ids) => {
+      if (ids.length > 2) {
+        toast.error("You can view at most 2 projects at a time.");
+        return;
+      }
+      // Only allow unique project IDs
+      const unique = [...new Set(ids)];
+      set({ visibleProjectIds: unique });
+      persistVisibleProjects(unique);
+    },
+    createProject: (name, description = "") => {
+      const { data, handle } = get();
+      if (!data) return;
+      const projectId = uid("project");
+      const projectSlug = slugify(name);
+      const project: Project = {
+        id: projectId,
+        name,
+        slug: projectSlug,
+        description,
+        milestones: [],
+        tasks: [],
+      };
+      const next: WorkspaceData = {
+        ...data,
+        workspace: {
+          ...data.workspace,
+          projectIds: [...data.workspace.projectIds, projectId],
+        },
+        projects: [...data.projects, project],
+      };
+      set({ data: next, saveState: "idle" });
+      if (handle) triggerDebouncedSave(handle, next, set);
+      // Auto-fill an empty panel slot if available
+      const { visibleProjectIds } = get();
+      if (visibleProjectIds.length < 2) {
+        const updated = [...visibleProjectIds, projectId];
+        set({ visibleProjectIds: updated });
+        persistVisibleProjects(updated);
+      }
+      toast.success(`Project "${name}" created`);
+    },
+    updateProject: (project) => {
+      const { data, handle } = get();
+      if (!data) return;
+      const next: WorkspaceData = {
+        ...data,
+        projects: data.projects.map((p) =>
+          p.id === project.id ? { ...project, slug: p.slug } : p,
+        ),
+      };
+      set({ data: next, saveState: "idle" });
+      if (handle) triggerDebouncedSave(handle, next, set);
+    },
+    deleteProject: async (projectId) => {
+      const { data, handle, visibleProjectIds } = get();
+      if (!data) return;
+      const project = data.projects.find((p) => p.id === projectId);
+      if (!project) return;
+      // Remove from workspace
+      const nextProjects = data.projects.filter((p) => p.id !== projectId);
+      const nextTabs = data.workspace.tabs
+        .map((tab) => ({
+          ...tab,
+          projectIds: tab.projectIds.filter((pid) => pid !== projectId),
+        }))
+        .filter((tab) => tab.projectIds.length > 0);
+      // Strip dangling cross-project dependencies
+      const cleanedProjects = nextProjects.map((p) => ({
+        ...p,
+        tasks: p.tasks.map((task) => ({
+          ...task,
+          crossProjectDependencies: task.crossProjectDependencies.filter(
+            (dep) => dep.projectId !== projectId,
+          ),
+        })),
+      }));
+      const next: WorkspaceData = {
+        ...data,
+        workspace: {
+          ...data.workspace,
+          projectIds: data.workspace.projectIds.filter(
+            (pid) => pid !== projectId,
+          ),
+          tabs: nextTabs,
+        },
+        projects: cleanedProjects,
+      };
+      // Free the panel slot
+      const nextVisible = visibleProjectIds.filter((id) => id !== projectId);
+      set({
+        data: next,
+        visibleProjectIds: nextVisible,
+        saveState: "idle",
+      });
+      persistVisibleProjects(nextVisible);
+      // Delete file from disk
+      if (handle) {
+        try {
+          const projectsDir = await handle.getDirectoryHandle("projects");
+          await deleteJson(projectsDir, `${project.slug}.json`);
+        } catch {
+          // File may not exist; ignore
+        }
+        triggerDebouncedSave(handle, next, set);
+      }
+      toast.success(`Project "${project.name}" deleted`);
+    },
+    setManageProjectsOpen: (open) => set({ manageProjectsOpen: open }),
   };
 });
 

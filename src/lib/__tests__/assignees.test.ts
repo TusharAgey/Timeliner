@@ -29,6 +29,7 @@ const baseTask = (overrides: Partial<Task> = {}): Task => ({
   priority: "Medium",
   labels: [],
   blockedReason: "",
+  milestoneId: "",
   dependencies: [],
   crossProjectDependencies: [],
   status: "Not Started",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import { Input } from "../../components/ui/Input";
 import type { Person } from "../../models/types";
 

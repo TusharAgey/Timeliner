@@ -45,12 +45,81 @@ const makeTask = (
   priority: "Medium" as const,
   labels: [],
   blockedReason: "",
+  milestoneId: "",
   dependencies: [],
   crossProjectDependencies: [],
   activityLog: [],
   isTemplate: false,
   ...task,
 });
+
+const runTheProdProject: Project = {
+  id: uid("project"),
+  slug: "run-the-prod",
+  name: "Run the prod",
+  description:
+    "Ad-hoc operations: hotfixes, prod incidents, deployments, and runbooks.",
+  milestones: [],
+  tasks: [
+    makeTask({
+      title: "Investigate prod incident #4821",
+      assignees: makeAssigneeHistory(
+        "Marcus Bell",
+        iso(subDays(new Date(), 1)),
+      ),
+      deliverable: "Root cause analysis + mitigation",
+      startDate: iso(subDays(new Date(), 1)),
+      endDate: iso(addDays(new Date(), 2)),
+      expectedStartDate: iso(subDays(new Date(), 1)),
+      expectedEndDate: iso(addDays(new Date(), 1)),
+      progressPercent: 30,
+      priority: "Critical",
+      labels: ["Infra", "Risk"],
+      blockedReason: "Waiting on vendor logs.",
+      description: "Customers reporting intermittent checkout errors.",
+    }),
+    makeTask({
+      title: "Deploy hotfix for payment gateway",
+      assignees: makeAssigneeHistory("Ravi Patel", iso(new Date())),
+      jiraLink: "https://jira.local/browse/OPS-441",
+      deliverable: "Deployed patch to production",
+      startDate: iso(new Date()),
+      endDate: iso(addDays(new Date(), 1)),
+      expectedStartDate: iso(new Date()),
+      expectedEndDate: iso(addDays(new Date(), 1)),
+      progressPercent: 80,
+      priority: "High",
+      labels: ["Launch", "Backend"],
+      description: "Fix null-pointer in checkout path. Canary at 10%.",
+    }),
+    makeTask({
+      title: "Rotate DB credentials",
+      assignees: makeAssigneeHistory("Leah Gomez", iso(addDays(new Date(), 1))),
+      deliverable: "Credential rotation completed across all shards",
+      startDate: iso(addDays(new Date(), 1)),
+      endDate: iso(addDays(new Date(), 5)),
+      expectedStartDate: iso(addDays(new Date(), 1)),
+      expectedEndDate: iso(addDays(new Date(), 4)),
+      progressPercent: 0,
+      priority: "Medium",
+      labels: ["Infra"],
+      description: "Quarterly prod credential rotation per security policy.",
+    }),
+    makeTask({
+      title: "Update incident runbook",
+      assignees: makeAssigneeHistory("Ava Singh", iso(addDays(new Date(), 2))),
+      deliverable: "Revised runbook with new escalation contacts",
+      startDate: iso(addDays(new Date(), 2)),
+      endDate: iso(addDays(new Date(), 10)),
+      expectedStartDate: iso(addDays(new Date(), 2)),
+      expectedEndDate: iso(addDays(new Date(), 9)),
+      progressPercent: 10,
+      priority: "Low",
+      labels: ["Launch"],
+      description: "Post-incident follow-up: document new escalation paths.",
+    }),
+  ],
+};
 
 const projects: Project[] = [
   {
@@ -65,12 +134,14 @@ const projects: Project[] = [
         title: "Sandbox UAT complete",
         date: iso(addDays(new Date(), 6)),
         description: "Merchant acceptance criteria signed off.",
+        color: "",
       },
       {
         id: uid("milestone"),
         title: "Launch review",
         date: iso(addDays(new Date(), 20)),
         description: "Readiness with support and finance.",
+        color: "",
       },
     ],
     tasks: [
@@ -138,12 +209,14 @@ const projects: Project[] = [
         title: "Design freeze",
         date: iso(addDays(new Date(), 4)),
         description: "Scope locked for sprint 12.",
+        color: "",
       },
       {
         id: uid("milestone"),
         title: "Beta release",
         date: iso(addDays(new Date(), 18)),
         description: "Dogfood via employee beta cohort.",
+        color: "",
       },
     ],
     tasks: [
@@ -209,12 +282,14 @@ const projects: Project[] = [
         title: "Staging cutover",
         date: iso(addDays(new Date(), 10)),
         description: "Traffic shadowing enabled.",
+        color: "",
       },
       {
         id: uid("milestone"),
         title: "Production migration",
         date: iso(addDays(new Date(), 28)),
         description: "Progressive regional rollout.",
+        color: "",
       },
     ],
     tasks: [
@@ -276,19 +351,25 @@ const tabs: WorkspaceTab[] = [
     name: "Launch Ops",
     projectIds: [projects[0].id, projects[2].id],
   },
-  { id: uid("tab"), name: "Product Focus", projectIds: [projects[1].id] },
+  {
+    id: uid("tab"),
+    name: "Product Focus",
+    projectIds: [projects[1].id, runTheProdProject.id],
+  },
 ];
+
+const allProjects = [...projects, runTheProdProject];
 
 const workspace: Workspace = {
   id: uid("workspace"),
   name: "Timeliner Demo Workspace",
-  projectIds: projects.map((project) => project.id),
+  projectIds: allProjects.map((project) => project.id),
   tabs,
 };
 
 export const createSeedWorkspace = (): WorkspaceData => ({
   workspace,
-  projects,
+  projects: allProjects,
   people,
   labels,
 });

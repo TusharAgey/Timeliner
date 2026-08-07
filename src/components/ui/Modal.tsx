@@ -1,5 +1,5 @@
 import { useEffect, useRef, type PropsWithChildren } from "react";
-import { X } from "lucide-react";
+import X from "lucide-react/dist/esm/icons/x";
 import { Button } from "./Button";
 
 type ModalProps = PropsWithChildren<{

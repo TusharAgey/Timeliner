@@ -1,5 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, Trash2 } from "lucide-react";
+import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
+import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
+import ExternalLink from "lucide-react/dist/esm/icons/external-link";
+import Flag from "lucide-react/dist/esm/icons/flag";
+import Trash2 from "lucide-react/dist/esm/icons/trash-2";
 
 import { Button } from "../../components/ui/Button";
 import { fullDate } from "../../lib/date";
@@ -10,7 +14,7 @@ import {
   getPreviousAssignees,
   getPreviousAccountables,
 } from "../../lib/assignees";
-import type { Person, Task, TaskPriority } from "../../models/types";
+import type { Milestone, Person, Task, TaskPriority } from "../../models/types";
 import { PILL_WIDTH } from "./timelineLayout";
 import { EditFields } from "./TaskCardFields";
 import { TaskCardDetails } from "./TaskCardDetails";
@@ -39,6 +43,8 @@ const initials = (name: string) =>
 type TaskCardProps = {
   task: Task;
   people: Person[];
+  milestones: Milestone[];
+  allTasks: Task[];
   onSave: (task: Task) => void;
   onDelete: (taskId: string) => void;
   side?: "left" | "right";
@@ -49,6 +55,8 @@ type TaskCardProps = {
 export const TaskCard = ({
   task,
   people,
+  milestones,
+  allTasks,
   onSave,
   onDelete,
   side = "left",
@@ -63,6 +71,7 @@ export const TaskCard = ({
   const previousAssignees = getPreviousAssignees(task);
   const previousAccountables = getPreviousAccountables(task);
   const handoffCount = previousAssignees.length + previousAccountables.length;
+  const taskMilestone = milestones.find((m) => m.id === task.milestoneId);
   const status = useMemo(() => computeTaskStatus(draft), [draft]);
   const expectedProgress = useMemo(() => {
     const now = new Date();
@@ -158,7 +167,13 @@ export const TaskCard = ({
           </div>
           {editing ? (
             <div className="mt-4">
-              <EditFields draft={draft} people={people} onChange={setDraft} />
+              <EditFields
+                draft={draft}
+                people={people}
+                milestones={milestones}
+                allTasks={allTasks}
+                onChange={setDraft}
+              />
             </div>
           ) : (
             <h4 className="mt-2 text-[14px] font-semibold leading-5 text-white">
@@ -205,6 +220,15 @@ export const TaskCard = ({
               ) : (
                 <span className="text-muted">No Jira</span>
               )}
+              {taskMilestone ? (
+                <>
+                  <span className="text-muted">·</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-400/20">
+                    <Flag className="size-3" />
+                    {taskMilestone.title}
+                  </span>
+                </>
+              ) : null}
             </div>
             <div>
               <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-muted">
@@ -221,7 +245,11 @@ export const TaskCard = ({
               </div>
             </div>
             {expanded && (
-              <TaskCardDetails task={task} handoffCount={handoffCount} />
+              <TaskCardDetails
+                task={task}
+                handoffCount={handoffCount}
+                allTasks={allTasks}
+              />
             )}
             {task.dependencies.length ||
             task.blockedReason ||

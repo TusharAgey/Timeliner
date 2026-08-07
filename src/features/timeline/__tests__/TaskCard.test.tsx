@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TaskCard } from "../TaskCard";
-import type { Task, Person } from "../../../models/types";
+import type { Milestone, Task, Person } from "../../../models/types";
 
 const makeTask = (overrides: Partial<Task> = {}): Task => ({
   id: "task-1",
@@ -27,6 +27,7 @@ const makeTask = (overrides: Partial<Task> = {}): Task => ({
   priority: "High" as const,
   labels: [],
   blockedReason: "",
+  milestoneId: "",
   dependencies: [],
   crossProjectDependencies: [],
   status: "On Track" as const,
@@ -40,12 +41,16 @@ const people: Person[] = [
   { id: "p2", name: "Bob", role: "Manager" },
 ];
 
+const milestones: Milestone[] = [];
+
 describe("TaskCard", () => {
   it("renders the task title", () => {
     render(
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -58,6 +63,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -70,6 +77,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -82,12 +91,14 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
-    // Status is computed dynamically; with May 1-15 dates and 50% progress on May 13, it's "Delayed"
-    expect(screen.getByText("Delayed")).toBeInTheDocument();
+    // Status is computed dynamically; with May 1-15 dates and 50% progress on June 3, it's "Overdue"
+    expect(screen.getByText("Overdue")).toBeInTheDocument();
   });
 
   it("renders the progress percentage", () => {
@@ -95,6 +106,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -107,6 +120,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -120,6 +135,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={onDelete}
       />,
@@ -134,6 +151,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -146,6 +165,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -158,6 +179,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -172,6 +195,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={onSave}
         onDelete={vi.fn()}
       />,
@@ -188,6 +213,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={onSave}
         onDelete={vi.fn()}
       />,
@@ -206,6 +233,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -238,6 +267,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={task}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -250,6 +281,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={makeTask()}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -263,6 +296,8 @@ describe("TaskCard", () => {
       <TaskCard
         task={task}
         people={people}
+        milestones={milestones}
+        allTasks={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
