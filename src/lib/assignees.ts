@@ -20,7 +20,7 @@ export const getAssigneeHistory = (task: Task): TaskAssignee[] => {
   if (task.assignees.length) {
     return task.assignees.map((entry) => ({
       ...entry,
-      role: "responsible" as const,
+      role: entry.role ?? ("responsible" as const),
     }));
   }
   return makeAssigneeHistory(legacy.assignee ?? "Unassigned", task.startDate);

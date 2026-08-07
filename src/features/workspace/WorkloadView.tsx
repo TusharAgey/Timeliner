@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { X } from "lucide-react";
+import X from "lucide-react/dist/esm/icons/x";
+
 import { Button } from "../../components/ui/Button";
 import { computeTaskStatus } from "../../lib/status";
 import { fullDate } from "../../lib/date";

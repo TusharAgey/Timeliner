@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { Plus, Trash2, Play } from "lucide-react";
+import Plus from "lucide-react/dist/esm/icons/plus";
+import Trash2 from "lucide-react/dist/esm/icons/trash-2";
+import Play from "lucide-react/dist/esm/icons/play";
+
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import { Input, Textarea } from "../../components/ui/Input";

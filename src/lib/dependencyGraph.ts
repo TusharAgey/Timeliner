@@ -56,11 +56,12 @@ export function buildGraph(
   for (const task of tasks) {
     nodeSet.add(task.id);
     for (const depId of task.dependencies) {
-      if (taskMap.has(depId) || tasks.some((t) => t.id === depId)) {
+      if (taskMap.has(depId)) {
         edges.push({ source: depId, target: task.id, crossProject: false });
         nodeSet.add(depId);
       }
     }
+
     for (const crossDep of task.crossProjectDependencies) {
       edges.push({
         source: crossDep.taskId,
@@ -114,7 +115,7 @@ export function buildGraph(
   }
 
   // Compute layers using topological sort
-  computeLayers(nodes, edges);
+  const hasCycle = computeLayers(nodes, edges);
 
   // Compute critical path
   const criticalPathTaskIds = findCriticalPath(nodes, edges);
@@ -126,12 +127,7 @@ export function buildGraph(
     }
   }
 
-  return {
-    nodes,
-    edges,
-    criticalPathTaskIds,
-    hasCycle: false,
-  };
+  return { nodes, edges, criticalPathTaskIds, hasCycle };
 }
 
 /**
@@ -139,7 +135,7 @@ export function buildGraph(
  * Nodes with no incoming edges go to layer 0.
  * Each node's layer = max(layer of predecessors) + 1.
  */
-function computeLayers(nodes: GraphNode[], edges: GraphEdge[]): void {
+function computeLayers(nodes: GraphNode[], edges: GraphEdge[]): boolean {
   const inDegree = new Map<string, number>();
   const adjacency = new Map<string, string[]>();
 
@@ -150,6 +146,8 @@ function computeLayers(nodes: GraphNode[], edges: GraphEdge[]): void {
 
   for (const edge of edges) {
     if (edge.crossProject) continue; // Skip cross-project edges for layout
+    // Skip edges whose source is not present in the node map to avoid false-positive cycles
+    if (!adjacency.has(edge.source)) continue;
     const targets = adjacency.get(edge.source) ?? [];
     targets.push(edge.target);
     adjacency.set(edge.source, targets);
@@ -192,6 +190,7 @@ function computeLayers(nodes: GraphNode[], edges: GraphEdge[]): void {
   }
 
   // Handle unvisited nodes (cycles or disconnected)
+  const hasCycle = nodes.some((n) => !visited.has(n.id));
   for (const node of nodes) {
     if (!visited.has(node.id)) {
       node.layer = 0;
@@ -211,6 +210,8 @@ function computeLayers(nodes: GraphNode[], edges: GraphEdge[]): void {
       node.index = i;
     });
   }
+
+  return hasCycle;
 }
 
 /**
@@ -250,13 +251,18 @@ export function findCriticalPath(
 
   // DP: longest path from each node to a sink
   const memo = new Map<string, { length: number; next: string | null }>();
+  // In-progress set guards against infinite recursion on cyclic graphs.
+  const visiting = new Set<string>();
 
   function dfs(nodeId: string): { length: number; next: string | null } {
     if (memo.has(nodeId)) return memo.get(nodeId)!;
+    if (visiting.has(nodeId)) return { length: 0, next: null }; // cycle guard
+    visiting.add(nodeId);
     const neighbors = forward.get(nodeId) ?? [];
     if (neighbors.length === 0) {
       const result = { length: 1, next: null };
       memo.set(nodeId, result);
+      visiting.delete(nodeId);
       return result;
     }
     let best = { length: 0, next: null as string | null };
@@ -267,6 +273,7 @@ export function findCriticalPath(
       }
     }
     memo.set(nodeId, best);
+    visiting.delete(nodeId);
     return best;
   }
 

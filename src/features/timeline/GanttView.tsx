@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { X } from "lucide-react";
+import X from "lucide-react/dist/esm/icons/x";
+
 import { Button } from "../../components/ui/Button";
 import { computeTaskStatus } from "../../lib/status";
-import { parseDate } from "../../lib/date";
-import { differenceInCalendarDays } from "date-fns";
+import { iso, parseDate, today as todayFn } from "../../lib/date";
+import { differenceInCalendarDays, isValid as isValidDate } from "date-fns";
 import type { Project } from "../../models/types";
 
 type GanttViewProps = {
@@ -20,10 +21,16 @@ export const GanttView = ({ projects, onClose }: GanttViewProps) => {
     if (!allTasks.length)
       return { tasks: [], dateRange: { start: new Date(), days: 30 } };
 
-    const dates = allTasks.flatMap((t) => [
-      parseDate(t.startDate),
-      parseDate(t.endDate),
-    ]);
+    /* L1: Filter invalid dates; fall back to today if all invalid */
+    const dates = allTasks
+      .flatMap((t) => [parseDate(t.startDate), parseDate(t.endDate)])
+      .filter((d) => isValidDate(d));
+
+    if (!dates.length) {
+      const fallback = todayFn();
+      return { tasks: [], dateRange: { start: fallback, days: 30 } };
+    }
+
     const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
     const days = Math.max(30, differenceInCalendarDays(maxDate, minDate) + 14);
@@ -37,8 +44,10 @@ export const GanttView = ({ projects, onClose }: GanttViewProps) => {
     };
   }, [projects]);
 
-  const today = new Date();
-  const todayOffset = differenceInCalendarDays(today, dateRange.start);
+  /* M1: Use local timezone today */
+  const todayDate = todayFn();
+  const todayStr = iso(todayDate);
+  const todayOffset = differenceInCalendarDays(todayDate, dateRange.start);
 
   const dayWidth = Math.max(12, Math.min(24, 800 / dateRange.days));
   const totalWidth = dateRange.days * dayWidth;
@@ -81,9 +90,7 @@ export const GanttView = ({ projects, onClose }: GanttViewProps) => {
             {Array.from({ length: dateRange.days }).map((_, i) => {
               const date = new Date(dateRange.start);
               date.setDate(date.getDate() + i);
-              const isToday =
-                date.toISOString().slice(0, 10) ===
-                today.toISOString().slice(0, 10);
+              const isToday = date.toISOString().slice(0, 10) === todayStr;
               const isWeekStart = date.getDay() === 1;
               return (
                 <div

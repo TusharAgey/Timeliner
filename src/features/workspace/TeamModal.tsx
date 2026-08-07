@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import Pencil from "lucide-react/dist/esm/icons/pencil";
+import Plus from "lucide-react/dist/esm/icons/plus";
+import Trash2 from "lucide-react/dist/esm/icons/trash-2";
+
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -109,6 +112,7 @@ export const TeamModal = ({
                   <Button
                     variant="ghost"
                     className="rounded-full p-2"
+                    aria-label={`Edit ${person.name}`}
                     onClick={() => setDraft(person)}
                   >
                     <Pencil className="size-4" />
@@ -116,6 +120,7 @@ export const TeamModal = ({
                   <Button
                     variant="ghost"
                     className="rounded-full p-2 text-rose-300"
+                    aria-label={`Delete ${person.name}`}
                     onClick={() => {
                       onDelete(person.id);
                       if (draft.id === person.id) resetDraft();

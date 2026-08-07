@@ -13,6 +13,7 @@ import {
   isValid,
   set,
   getDay,
+  startOfWeek,
 } from "date-fns";
 import type { Task } from "../models/types";
 import { iso, nextDays } from "./date";
@@ -58,6 +59,30 @@ const parseRelativeDate = (token: string): string | null => {
   return null;
 };
 
+const isKnownDayName = (word: string): boolean =>
+  DAY_NAMES.includes(word.toLowerCase() as DayName);
+
+const isDateKeyword = (word: string): boolean => {
+  const lower = word.toLowerCase();
+  return (
+    lower === "today" ||
+    lower === "tomorrow" ||
+    lower === "this week" ||
+    lower === "this month" ||
+    lower === "next month" ||
+    lower === "next year" ||
+    lower === "end of week" ||
+    lower === "end of month" ||
+    lower === "eow" ||
+    lower === "eom" ||
+    lower === "next week" ||
+    isKnownDayName(lower) ||
+    lower.startsWith("this ") ||
+    lower.startsWith("next ") ||
+    /^in\s+\d+\s+(day|days|week|weeks|month|months)$/.test(lower)
+  );
+};
+
 /**
  * Parse "this Friday", "this week", "this month", "next month", "next Tuesday", etc.
  * Also handles bare day names like "monday", "friday" (next occurrence).
@@ -65,10 +90,11 @@ const parseRelativeDate = (token: string): string | null => {
 const parseThisNextDay = (token: string): string | null => {
   const lower = token.toLowerCase().trim();
 
-  // "this week" → next Monday (start of next week)
-  if (lower === "this week") return iso(nextMonday(new Date()));
-  // "next week" → next Monday
-  if (lower === "next week") return iso(nextMonday(new Date()));
+  // "this week" → current week's Monday
+  if (lower === "this week")
+    return iso(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  // "next week" → Monday of the following week
+  if (lower === "next week") return iso(nextMonday(nextMonday(new Date())));
   // "this month" → first of next month
   if (lower === "this month")
     return iso(addMonths(set(new Date(), { date: 1 }), 1));
@@ -130,9 +156,10 @@ const parseThisNextDay = (token: string): string | null => {
 
 const parseDateToken = (token: string): string | null => {
   const normalized = token.trim().toLowerCase();
+  const now = new Date();
 
   // Basic keywords
-  if (normalized === "today") return iso(new Date());
+  if (normalized === "today") return iso(now);
   if (normalized === "tomorrow") return nextDays(1);
 
   // Relative dates: "in 3 days", "in 2 weeks"
@@ -144,16 +171,16 @@ const parseDateToken = (token: string): string | null => {
   if (thisNext) return thisNext;
 
   // Parse explicit dates: "Mar 5", "Mar 5 2026"
-  const parsed = parse(token, "MMM d", new Date());
+  const parsed = parse(token, "MMM d", now);
   if (isValid(parsed)) {
     // If the parsed date is in the past, assume next year
-    const withThisYear = set(parsed, { year: new Date().getFullYear() });
-    if (withThisYear < new Date()) {
-      return iso(set(parsed, { year: new Date().getFullYear() + 1 }));
+    const withThisYear = set(parsed, { year: now.getFullYear() });
+    if (withThisYear < now) {
+      return iso(set(parsed, { year: now.getFullYear() + 1 }));
     }
     return iso(withThisYear);
   }
-  const parsedFull = parse(token, "MMM d yyyy", new Date());
+  const parsedFull = parse(token, "MMM d yyyy", now);
   if (isValid(parsedFull)) return iso(parsedFull);
   return null;
 };
@@ -243,10 +270,12 @@ export const parseNaturalLanguageTask = (input: string): ParsedTaskDraft => {
   // --- Extract Jira ticket reference (e.g., PROJ-123) ---
   const jiraMatch = trimmed.match(/\b([A-Z]{2,}-\d+)\b/);
 
-  // --- Extract assignee: "for Name", "@Name", or "by Name" ---
-  const assigneeMatch = trimmed.match(
-    /(?:for\s+|@|by\s+)([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/,
-  );
+  // --- Extract blocked reason: "blocked by X" or "blocked: X" ---
+  // H5: Extract this before the assignee match to avoid greedy "by X" capture
+  const blockedMatch = trimmed.match(/blocked\s*(?:by|:)\s+(.+?)(?:\.|$)/i);
+
+  // --- Extract deliverable: "deliverable: X" ---
+  const deliverableMatch = trimmed.match(/deliverable[:\s]+(.+?)(?:\.|$)/i);
 
   // --- Extract date range: "today to tomorrow", "Mar 5 - Mar 10", etc. ---
   const rangeMatch = trimmed.match(
@@ -270,6 +299,21 @@ export const parseNaturalLanguageTask = (input: string): ParsedTaskDraft => {
   const singleDateMatch = trimmed.match(new RegExp(DATE_TOKEN_PATTERN, "i"));
   const singleDate = singleDateMatch?.[0];
 
+  // --- H5: Extract assignee: "for Name" or "@Name" ---
+  // We do NOT match "by Name" here — that's handled by due/blocked patterns first.
+  // Also reject matches where the captured word is a known day name or date keyword.
+  const assigneeMatch = trimmed.match(
+    /(?:for\s+|@)([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/,
+  );
+
+  // --- H5: Validate assignee — if the captured name is a day name or date keyword, discard it
+  const assigneeName =
+    assigneeMatch &&
+    !isKnownDayName(assigneeMatch[1]) &&
+    !isDateKeyword(assigneeMatch[1])
+      ? assigneeMatch[1]
+      : null;
+
   // --- Extract priority: "p1", "p2", "high", "critical", "asap", etc. ---
   const priorityMatch = trimmed.match(
     /\b(p[1234]|critical|high|medium|low|asap)\b/i,
@@ -292,14 +336,6 @@ export const parseNaturalLanguageTask = (input: string): ParsedTaskDraft => {
   // --- Extract labels: #label1 #label2 ---
   const labelMatches = trimmed.match(/#(\w+)/g);
   const labels = labelMatches ? labelMatches.map((l) => l.slice(1)) : [];
-
-  // --- Extract blocked reason: "blocked by X" or "blocked: X" ---
-  // Use a greedy capture up to end of string or sentence-ending punctuation
-  // Note: "blocked:" has no space before the colon, so use \s* before :
-  const blockedMatch = trimmed.match(/blocked\s*(?:by|:)\s+(.+?)(?:\.|$)/i);
-
-  // --- Extract deliverable: "deliverable: X" ---
-  const deliverableMatch = trimmed.match(/deliverable[:\s]+(.+?)(?:\.|$)/i);
 
   // --- Extract description: "description: X" or "note: X" ---
   const descriptionMatch = trimmed.match(
@@ -336,9 +372,9 @@ export const parseNaturalLanguageTask = (input: string): ParsedTaskDraft => {
   // Remove "add " or "create " prefix
   cleanedTitle = cleanedTitle.replace(/^(?:add\s+|create\s+)?/i, "");
 
-  // Remove assignee tokens: "for Name", "@Name", "by Name"
+  // Remove assignee tokens: "for Name", "@Name"
   cleanedTitle = cleanedTitle.replace(
-    /(?:for\s+|@|by\s+)[A-Z][a-z]+(?:\s[A-Z][a-z]+)?/g,
+    /(?:for\s+|@)[A-Z][a-z]+(?:\s[A-Z][a-z]+)?/g,
     "",
   );
 
@@ -386,6 +422,8 @@ export const parseNaturalLanguageTask = (input: string): ParsedTaskDraft => {
 
   // Remove orphaned "due" that may remain after partial cleaning (e.g., "due by friday" → "due" remains)
   cleanedTitle = cleanedTitle.replace(/\bdue\b/gi, "");
+  // Remove orphaned "from" that may remain after date range cleaning
+  cleanedTitle = cleanedTitle.replace(/\bfrom\b\s*/gi, "");
 
   // Collapse whitespace
   cleanedTitle = cleanedTitle.replace(/\s+/g, " ").trim();
@@ -396,11 +434,11 @@ export const parseNaturalLanguageTask = (input: string): ParsedTaskDraft => {
     id: uid("task"),
     title: cleanedTitle || "New task",
     assignees: makeAssigneeHistory(
-      assigneeMatch?.[1] ?? "Unassigned",
+      assigneeName ?? "Unassigned",
       startDate ?? nextDays(1),
     ),
     accountable: makeAccountableHistory(
-      assigneeMatch?.[1] ?? "Unassigned",
+      assigneeName ?? "Unassigned",
       startDate ?? nextDays(1),
     ),
     jiraLink: jiraMatch ? `https://${jiraDomain}/browse/${jiraMatch[1]}` : "",

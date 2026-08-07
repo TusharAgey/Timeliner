@@ -129,6 +129,17 @@ describe("aggregateVisibleSummary", () => {
     expect(result.atRisk).toBe(0);
     expect(result.startsToday).toBe(0);
   });
+
+  it("counts tasks starting today using local timezone (M1)", () => {
+    // Build a task whose startDate is today's local date (not UTC).
+    const now = new Date();
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const project = makeProject({
+      tasks: [makeTask({ startDate: localToday })],
+    });
+    const result = aggregateVisibleSummary([project]);
+    expect(result.startsToday).toBe(1);
+  });
 });
 
 describe("computeProjectHealth", () => {
@@ -172,6 +183,33 @@ describe("computeProjectHealth", () => {
     expect(health.tone).toBe("red");
     expect(health.label).toBe("Critical");
   });
+
+  it("handles tasks with empty expected dates gracefully", () => {
+    const project = makeProject({
+      tasks: [
+        makeTask({
+          expectedStartDate: "",
+          expectedEndDate: "",
+          startDate: "2026-05-01",
+          endDate: "2026-05-15",
+          progressPercent: 50,
+        }),
+        makeTask({
+          id: "task-2",
+          expectedStartDate: "",
+          expectedEndDate: "",
+          startDate: "",
+          endDate: "",
+          progressPercent: 0,
+        }),
+      ],
+    });
+    const health = computeProjectHealth(project);
+    // Should not crash with NaN, should return a valid health score
+    expect(health.score).toBeGreaterThanOrEqual(0);
+    expect(health.score).toBeLessThanOrEqual(100);
+    expect(["green", "yellow", "red"]).toContain(health.tone);
+  });
 });
 
 describe("computeProjectIntelligenceSummary", () => {
@@ -200,5 +238,42 @@ describe("computeProjectIntelligenceSummary", () => {
       h.includes("completed"),
     );
     expect(hasCompletionHighlight).toBe(true);
+  });
+
+  it("handles tasks with invalid expected dates without NaN", () => {
+    const project = makeProject({
+      tasks: [
+        makeTask({
+          id: "task-1",
+          expectedStartDate: "",
+          expectedEndDate: "",
+          startDate: "2026-05-01",
+          endDate: "2026-05-15",
+          progressPercent: 40,
+        }),
+        makeTask({
+          id: "task-2",
+          expectedStartDate: "invalid",
+          expectedEndDate: "also-invalid",
+          startDate: "2026-06-01",
+          endDate: "2026-06-10",
+          progressPercent: 80,
+        }),
+      ],
+    });
+    const summary = computeProjectIntelligenceSummary([project]);
+    // Should not contain NaN in any string output
+    for (const h of summary.highlights) {
+      expect(h).not.toContain("NaN");
+    }
+    for (const l of summary.lowlights) {
+      expect(l).not.toContain("NaN");
+    }
+    for (const r of summary.risks) {
+      expect(r).not.toContain("NaN");
+    }
+    expect(summary.health).toHaveLength(1);
+    expect(summary.health[0].score).toBeGreaterThanOrEqual(0);
+    expect(summary.health[0].score).toBeLessThanOrEqual(100);
   });
 });

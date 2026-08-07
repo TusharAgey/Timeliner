@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
+
+import { addDays, differenceInCalendarDays, isValid } from "date-fns";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
 import ExternalLink from "lucide-react/dist/esm/icons/external-link";
@@ -6,7 +8,8 @@ import Flag from "lucide-react/dist/esm/icons/flag";
 import Trash2 from "lucide-react/dist/esm/icons/trash-2";
 
 import { Button } from "../../components/ui/Button";
-import { fullDate } from "../../lib/date";
+import { fullDate, iso, parseDate, today } from "../../lib/date";
+
 import { computeTaskStatus, statusTone } from "../../lib/status";
 import {
   getCurrentAssignee,
@@ -27,9 +30,10 @@ const priorityColor: Record<TaskPriority, string> = {
 };
 
 const shiftDate = (value: string, days: number) => {
-  const date = new Date(value);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  if (!value) return value; // leave empty dates untouched
+  const date = parseDate(value);
+  if (!isValid(date)) return value;
+  return iso(addDays(date, days));
 };
 
 const initials = (name: string) =>
@@ -66,23 +70,41 @@ export const TaskCard = ({
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(task);
+
+  // H1: Keep draft in sync with the incoming task prop so quick-action
+  // updates (+10%, +1d) are reflected before opening inline edit.
+  // Adjust state during render (React-recommended pattern) instead of in an
+  // effect to avoid cascading renders.
+  const [prevTask, setPrevTask] = useState(task);
+  if (prevTask !== task) {
+    setPrevTask(task);
+    setDraft(task);
+  }
+
   const currentAssignee = getCurrentAssignee(task);
+
   const currentAccountable = getCurrentAccountable(task);
   const previousAssignees = getPreviousAssignees(task);
   const previousAccountables = getPreviousAccountables(task);
   const handoffCount = previousAssignees.length + previousAccountables.length;
   const taskMilestone = milestones.find((m) => m.id === task.milestoneId);
-  const status = useMemo(() => computeTaskStatus(draft), [draft]);
+  const status = useMemo(
+    () => computeTaskStatus(editing ? draft : task),
+    [editing, draft, task],
+  );
   const expectedProgress = useMemo(() => {
-    const now = new Date();
-    const start = new Date(task.expectedStartDate);
-    const end = new Date(task.expectedEndDate);
-    const total = Math.max(1, end.getTime() - start.getTime());
-    return Math.min(
-      100,
-      Math.max(0, ((now.getTime() - start.getTime()) / total) * 100),
+    const now = today();
+    const start = parseDate(task.expectedStartDate);
+
+    const end = parseDate(task.expectedEndDate);
+    const totalDays = Math.max(1, differenceInCalendarDays(end, start) + 1);
+    const elapsedDays = Math.max(
+      0,
+      Math.min(totalDays, differenceInCalendarDays(now, start) + 1),
     );
+    return (elapsedDays / totalDays) * 100;
   }, [task.expectedEndDate, task.expectedStartDate]);
+
   const progressDelta = task.progressPercent - expectedProgress;
   const progressSignal =
     status === "Done"
@@ -110,6 +132,10 @@ export const TaskCard = ({
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
+      // Ignore events originating from interactive children (buttons, links,
+      // inputs) so Enter/Space on those still triggers their own action
+      // instead of opening inline editing.
+      if (event.target !== event.currentTarget) return;
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         if (!editing) {
@@ -296,7 +322,7 @@ export const TaskCard = ({
         {editing ? (
           <Button
             onClick={() => {
-              onSave({ ...draft, status });
+              onSave(draft);
               setEditing(false);
               onEditingChange?.(false);
             }}
@@ -304,6 +330,7 @@ export const TaskCard = ({
             Save
           </Button>
         ) : null}
+
         {!editing ? (
           <div className="flex translate-y-1 items-center gap-1 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
             <button
@@ -325,6 +352,8 @@ export const TaskCard = ({
                   ...task,
                   startDate: shiftDate(task.startDate, 1),
                   endDate: shiftDate(task.endDate, 1),
+                  expectedStartDate: shiftDate(task.expectedStartDate, 1),
+                  expectedEndDate: shiftDate(task.expectedEndDate, 1),
                 })
               }
               aria-label="Shift dates by 1 day"

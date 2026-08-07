@@ -88,7 +88,9 @@ export const TaskCardDetails = ({
             .map((entry) => (
               <div key={entry.id} className="flex gap-2 py-0.5">
                 <span className="shrink-0 text-slate-500">
-                  {new Date(entry.timestamp).toLocaleDateString()}
+                  {entry.timestamp
+                    ? new Date(entry.timestamp).toLocaleDateString()
+                    : "—"}
                 </span>
                 <span>
                   {entry.actor} {entry.action}

@@ -110,10 +110,12 @@ export const EditFields = ({
           {milestones.map((m) => (
             <option key={m.id} value={m.id}>
               {m.title} —{" "}
-              {new Date(m.date + "T00:00:00").toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              })}
+              {m.date
+                ? new Date(m.date + "T00:00:00").toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })
+                : "No date"}
             </option>
           ))}
         </select>

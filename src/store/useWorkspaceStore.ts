@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { z } from "zod";
 import { toast } from "sonner";
 import { createSeedWorkspace } from "../services/seedData";
 import {
@@ -12,6 +13,7 @@ import {
   type WorkspaceFolderHandle,
 } from "../services/fileSystem";
 import { debounce, slugify, uid } from "../lib/utils";
+import { iso } from "../lib/date";
 import { computeTaskStatus } from "../lib/status";
 import { parseNaturalLanguageTask } from "../lib/parser";
 import {
@@ -29,7 +31,12 @@ import type {
   TaskTemplate,
   CrossProjectDependency,
 } from "../models/types";
-import { workspaceSchema } from "../models/types";
+import {
+  workspaceSchema,
+  projectSchema,
+  personSchema,
+  labelSchema,
+} from "../models/types";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -58,7 +65,6 @@ type WorkspaceStore = {
   teamOpen: boolean;
   recentlyDeletedTask: DeletedTaskSnapshot | null;
   fsSupported: boolean;
-  // New state
   zoom: "week" | "month" | "quarter";
   timelineFilter: "all" | "overdue" | "atRisk" | "startsToday";
   selectedTaskIds: string[];
@@ -90,7 +96,6 @@ type WorkspaceStore = {
   clearRecentlyDeletedTask: () => void;
   createTaskFromNaturalLanguage: (projectId: string, input: string) => Task;
   updateWorkspaceName: (name: string) => void;
-  // New actions
   setZoom: (zoom: "week" | "month" | "quarter") => void;
   setTimelineFilter: (
     filter: "all" | "overdue" | "atRisk" | "startsToday",
@@ -168,11 +173,10 @@ const debouncedSave = debounce(
   ) => {
     try {
       setState({ saveState: "saving" });
-      // Only save if this is still the latest version
       if (version !== saveVersion) return;
       await saveWorkspaceToHandle(handle, data);
       if (version === saveVersion) {
-        setState({ saveState: "saved" });
+        setState({ saveState: "saved", error: null });
       }
     } catch (error) {
       setState({
@@ -205,7 +209,7 @@ const loadPersistedPrefs = () => {
       };
     }
   } catch {
-    // localStorage may be unavailable (e.g. private browsing); use defaults
+    // localStorage may be unavailable; use defaults
   }
   return { zoom: "month" as const, timelineFilter: "all" as const };
 };
@@ -238,7 +242,6 @@ const persistVisibleProjects = (ids: string[]) => {
   }
 };
 
-// Persist templates to localStorage so they survive page refreshes
 const TEMPLATES_STORAGE_KEY = "timeliner-templates";
 const loadPersistedTemplates = (): TaskTemplate[] => {
   try {
@@ -384,10 +387,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     saveNow: async () => {
       const { handle, data } = get();
       if (!handle || !data) return;
-      set({ saveState: "saving" });
+      set({ saveState: "saving", error: null });
       try {
+        // L5: Bump saveVersion so any in-flight debounced save with an older
+        // version is discarded, preventing a stale overwrite after saveNow.
+        saveVersion++;
         await saveWorkspaceToHandle(handle, data);
-        set({ saveState: "saved" });
+        set({ saveState: "saved", error: null });
         toast.success("Workspace saved");
       } catch (error) {
         const message =
@@ -426,11 +432,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         set({ selectedTaskIds: project.tasks.map((t) => t.id) });
       }
     },
+    /* H2 + M5: Use withComputedStatuses and persist via undo/redo */
     bulkUpdateTasks: (projectId, updates) => {
       const { data, handle, selectedTaskIds } = get();
       if (!data || !selectedTaskIds.length) return;
       const prev = structuredClone(data);
-      const next = {
+      const rawNext = {
         ...data,
         projects: data.projects.map((project) =>
           project.id !== projectId
@@ -449,13 +456,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
               },
         ),
       };
+      const next = withComputedStatuses(rawNext);
       const count = selectedTaskIds.length;
       set({ data: next, saveState: "idle", selectedTaskIds: [] });
       if (handle) triggerDebouncedSave(handle, next, set);
       get().pushUndo(
         `Bulk update ${count} tasks`,
-        () => set({ data: prev }),
-        () => set({ data: next }),
+        () => {
+          set({ data: prev });
+          if (get().handle) triggerDebouncedSave(get().handle!, prev, set);
+        },
+        () => {
+          set({ data: next });
+          if (get().handle) triggerDebouncedSave(get().handle!, next, set);
+        },
       );
     },
     bulkShiftDates: (projectId, days) => {
@@ -464,10 +478,10 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       const shift = (d: string) => {
         const date = new Date(d);
         date.setDate(date.getDate() + days);
-        return date.toISOString().slice(0, 10);
+        return iso(date);
       };
       const prev = structuredClone(data);
-      const next = {
+      const rawNext = {
         ...data,
         projects: data.projects.map((project) =>
           project.id !== projectId
@@ -495,20 +509,27 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
               },
         ),
       };
+      const next = withComputedStatuses(rawNext);
       const count = selectedTaskIds.length;
       set({ data: next, saveState: "idle", selectedTaskIds: [] });
       if (handle) triggerDebouncedSave(handle, next, set);
       get().pushUndo(
         `Shift ${count} tasks by ${days}d`,
-        () => set({ data: prev }),
-        () => set({ data: next }),
+        () => {
+          set({ data: prev });
+          if (get().handle) triggerDebouncedSave(get().handle!, prev, set);
+        },
+        () => {
+          set({ data: next });
+          if (get().handle) triggerDebouncedSave(get().handle!, next, set);
+        },
       );
     },
     bulkDeleteTasks: (projectId) => {
       const { data, handle, selectedTaskIds } = get();
       if (!data || !selectedTaskIds.length) return;
       const prev = structuredClone(data);
-      const next = {
+      const rawNext = {
         ...data,
         projects: data.projects.map((project) =>
           project.id !== projectId
@@ -521,13 +542,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
               },
         ),
       };
+      const next = withComputedStatuses(rawNext);
       const count = selectedTaskIds.length;
       set({ data: next, saveState: "idle", selectedTaskIds: [] });
       if (handle) triggerDebouncedSave(handle, next, set);
       get().pushUndo(
         `Delete ${count} tasks`,
-        () => set({ data: prev }),
-        () => set({ data: next }),
+        () => {
+          set({ data: prev });
+          if (get().handle) triggerDebouncedSave(get().handle!, prev, set);
+        },
+        () => {
+          set({ data: next });
+          if (get().handle) triggerDebouncedSave(get().handle!, next, set);
+        },
       );
     },
     pushUndo: (description, undoFn, redoFn) => {
@@ -620,8 +648,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       if (isNew) toast.success(`Task "${task.title}" created`);
       get().pushUndo(
         isNew ? `Create "${task.title}"` : `Update "${task.title}"`,
-        () => set({ data: prev }),
-        () => set({ data: next }),
+        () => {
+          set({ data: prev });
+          if (get().handle) triggerDebouncedSave(get().handle!, prev, set);
+        },
+        () => {
+          set({ data: next });
+          if (get().handle) triggerDebouncedSave(get().handle!, next, set);
+        },
       );
     },
 
@@ -648,8 +682,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       toast.info(`Task "${task.title}" deleted (undo available)`);
       get().pushUndo(
         `Delete "${task.title}"`,
-        () => set({ data: prev }),
-        () => set({ data: next }),
+        () => {
+          set({ data: prev, recentlyDeletedTask: null });
+          if (get().handle) triggerDebouncedSave(get().handle!, prev, set);
+        },
+        () => {
+          set({ data: next });
+          if (get().handle) triggerDebouncedSave(get().handle!, next, set);
+        },
       );
     },
 
@@ -815,10 +855,10 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         accountable: template.accountable,
         jiraLink: "",
         deliverable: template.deliverable,
-        startDate: start.toISOString().slice(0, 10),
-        endDate: end.toISOString().slice(0, 10),
-        expectedStartDate: start.toISOString().slice(0, 10),
-        expectedEndDate: end.toISOString().slice(0, 10),
+        startDate: iso(start),
+        endDate: iso(end),
+        expectedStartDate: iso(start),
+        expectedEndDate: iso(end),
         progressPercent: 0,
         priority: template.priority,
         labels: template.labels,
@@ -887,6 +927,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       set({ data: next, saveState: "idle" });
       if (handle) triggerDebouncedSave(handle, next, set);
     },
+    /* L3: Append anchor to DOM for cross-browser download support */
     exportWorkspace: () => {
       const { data } = get();
       if (!data) return;
@@ -897,21 +938,23 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       const a = document.createElement("a");
       a.href = url;
       a.download = `${data.workspace.name.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.timeliner.json`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     },
+    /* H3: Validate all imported data with Zod schemas */
     importWorkspace: async (file) => {
       try {
         const text = await file.text();
         const parsed = JSON.parse(text);
-        // Validate with Zod schema
         const validated = workspaceSchema.parse(parsed.workspace);
-        const data = {
+        const data: WorkspaceData = {
           workspace: validated,
-          projects: parsed.projects ?? [],
-          people: parsed.people ?? [],
-          labels: parsed.labels ?? [],
-        } as WorkspaceData;
+          projects: z.array(projectSchema).parse(parsed.projects ?? []),
+          people: z.array(personSchema).parse(parsed.people ?? []),
+          labels: z.array(labelSchema).parse(parsed.labels ?? []),
+        };
         const next = withComputedStatuses(data);
         const firstTab = next.workspace.tabs[0];
         const seededVisible = firstTab
@@ -922,7 +965,6 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
           saveState: "idle",
           visibleProjectIds: seededVisible,
         });
-        // Persist to file system if handle is available
         const { handle } = get();
         if (handle) {
           triggerDebouncedSave(handle, next, set);
@@ -942,16 +984,22 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         toast.error("You can view at most 2 projects at a time.");
         return;
       }
-      // Only allow unique project IDs
       const unique = [...new Set(ids)];
       set({ visibleProjectIds: unique });
       persistVisibleProjects(unique);
     },
+    /* H2: Ensure unique slug; H6: Add to active tab */
     createProject: (name, description = "") => {
-      const { data, handle } = get();
+      const { data, handle, activeTabId } = get();
       if (!data) return;
       const projectId = uid("project");
-      const projectSlug = slugify(name);
+      let projectSlug = slugify(name);
+      const existingSlugs = new Set(data.projects.map((p) => p.slug));
+      if (existingSlugs.has(projectSlug)) {
+        let counter = 2;
+        while (existingSlugs.has(`${projectSlug}-${counter}`)) counter++;
+        projectSlug = `${projectSlug}-${counter}`;
+      }
       const project: Project = {
         id: projectId,
         name,
@@ -965,12 +1013,16 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         workspace: {
           ...data.workspace,
           projectIds: [...data.workspace.projectIds, projectId],
+          tabs: data.workspace.tabs.map((tab) =>
+            tab.id === activeTabId
+              ? { ...tab, projectIds: [...tab.projectIds, projectId] }
+              : tab,
+          ),
         },
         projects: [...data.projects, project],
       };
       set({ data: next, saveState: "idle" });
       if (handle) triggerDebouncedSave(handle, next, set);
-      // Auto-fill an empty panel slot if available
       const { visibleProjectIds } = get();
       if (visibleProjectIds.length < 2) {
         const updated = [...visibleProjectIds, projectId];
@@ -991,12 +1043,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       set({ data: next, saveState: "idle" });
       if (handle) triggerDebouncedSave(handle, next, set);
     },
+    /* C2 + L7: Synchronous save before project file delete, guarded error handling */
     deleteProject: async (projectId) => {
       const { data, handle, visibleProjectIds } = get();
       if (!data) return;
       const project = data.projects.find((p) => p.id === projectId);
       if (!project) return;
-      // Remove from workspace
+      const prev = structuredClone(data);
       const nextProjects = data.projects.filter((p) => p.id !== projectId);
       const nextTabs = data.workspace.tabs
         .map((tab) => ({
@@ -1004,7 +1057,6 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
           projectIds: tab.projectIds.filter((pid) => pid !== projectId),
         }))
         .filter((tab) => tab.projectIds.length > 0);
-      // Strip dangling cross-project dependencies
       const cleanedProjects = nextProjects.map((p) => ({
         ...p,
         tasks: p.tasks.map((task) => ({
@@ -1025,7 +1077,6 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         },
         projects: cleanedProjects,
       };
-      // Free the panel slot
       const nextVisible = visibleProjectIds.filter((id) => id !== projectId);
       set({
         data: next,
@@ -1033,17 +1084,44 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         saveState: "idle",
       });
       persistVisibleProjects(nextVisible);
-      // Delete file from disk
       if (handle) {
+        try {
+          saveVersion++;
+          await saveWorkspaceToHandle(handle, next);
+          set({ saveState: "saved" });
+        } catch {
+          // continue — the project file deletion is still attempted below
+        }
         try {
           const projectsDir = await handle.getDirectoryHandle("projects");
           await deleteJson(projectsDir, `${project.slug}.json`);
-        } catch {
-          // File may not exist; ignore
+        } catch (err) {
+          if (!(err instanceof DOMException && err.name === "NotFoundError")) {
+            console.error("Failed to delete project file:", err);
+          }
         }
-        triggerDebouncedSave(handle, next, set);
       }
-      toast.success(`Project "${project.name}" deleted`);
+      get().pushUndo(
+        `Delete project "${project.name}"`,
+        () => {
+          set({
+            data: prev,
+            visibleProjectIds,
+          });
+          persistVisibleProjects(visibleProjectIds);
+          if (get().handle) triggerDebouncedSave(get().handle!, prev, set);
+          toast.info(`Restored project "${project.name}"`);
+        },
+        () => {
+          set({
+            data: next,
+            visibleProjectIds: nextVisible,
+          });
+          persistVisibleProjects(nextVisible);
+          if (get().handle) triggerDebouncedSave(get().handle!, next, set);
+        },
+      );
+      toast.success(`Project "${project.name}" deleted (undo available)`);
     },
     setManageProjectsOpen: (open) => set({ manageProjectsOpen: open }),
   };

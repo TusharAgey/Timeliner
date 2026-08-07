@@ -1,5 +1,5 @@
-import { differenceInCalendarDays, isBefore } from "date-fns";
-import { parseDate } from "../../lib/date";
+import { differenceInCalendarDays, isBefore, isValid } from "date-fns";
+import { parseDate, today } from "../../lib/date";
 import type { Task } from "../../models/types";
 
 export const CARD_HEIGHT = 190;
@@ -17,8 +17,13 @@ type TimeScale = {
 export const timeToY = (date: Date, { minOffset, scale, today }: TimeScale) =>
   (differenceInCalendarDays(date, today) - minOffset) * scale;
 
-export const getTaskTargetDate = (task: Task) =>
-  parseDate(task.expectedEndDate || task.endDate);
+export const getTaskTargetDate = (task: Task) => {
+  const dateStr = task.expectedEndDate || task.endDate;
+  if (!dateStr) return today();
+  const parsed = parseDate(dateStr);
+  if (!isValid(parsed)) return today();
+  return parsed;
+};
 
 export const resolveCardTop = ({
   baseY,

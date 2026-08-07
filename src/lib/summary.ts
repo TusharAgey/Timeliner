@@ -2,10 +2,11 @@ import {
   differenceInCalendarDays,
   format,
   isWithinInterval,
+  isValid,
   subDays,
 } from "date-fns";
 import type { Milestone, Project, Task, TaskStatus } from "../models/types";
-import { parseDate, today, weekRange } from "./date";
+import { iso, parseDate, today, weekRange } from "./date";
 import { computeTaskStatus } from "./status";
 
 type TaskWithProject = {
@@ -49,8 +50,13 @@ const clamp = (value: number, min = 0, max = 100) =>
   Math.min(max, Math.max(min, value));
 
 const expectedProgressForTask = (task: Task) => {
-  const start = parseDate(task.expectedStartDate);
-  const end = parseDate(task.expectedEndDate);
+  const rawStart = parseDate(task.expectedStartDate);
+  const rawEnd = parseDate(task.expectedEndDate);
+  const fallbackStart = parseDate(task.startDate);
+  const fallbackEnd = parseDate(task.endDate);
+  const start = isValid(rawStart) ? rawStart : fallbackStart;
+  const end = isValid(rawEnd) ? rawEnd : fallbackEnd;
+  if (!isValid(start) || !isValid(end)) return 0;
   const total = Math.max(1, differenceInCalendarDays(end, start) + 1);
   const elapsed = clamp(differenceInCalendarDays(today(), start) + 1, 0, total);
   return (elapsed / total) * 100;
@@ -90,6 +96,9 @@ export const projectSummary = (project: Project) => {
   };
 };
 
+/* M1: Use iso(today()) instead of new Date().toISOString().slice(0,10) for local tz consistency */
+const todayStr = iso(today());
+
 export const aggregateVisibleSummary = (projects: Project[]) => {
   const allTasks = projects.flatMap((project) => project.tasks);
   const statuses = allTasks.map(computeTaskStatus);
@@ -105,11 +114,9 @@ export const aggregateVisibleSummary = (projects: Project[]) => {
     atRisk: statuses.filter(
       (status) => status === "At Risk" || status === "Delayed",
     ).length,
-    startsToday: allTasks.filter(
-      (task) => task.startDate === new Date().toISOString().slice(0, 10),
-    ).length,
+    startsToday: allTasks.filter((task) => task.startDate === todayStr).length,
     nextMilestoneLabel: allMilestones[0]
-      ? `${Math.max(0, Math.ceil((allMilestones[0].parsed.getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)))}d`
+      ? `${Math.max(0, Math.ceil((allMilestones[0].parsed.getTime() - today().getTime()) / (1000 * 60 * 60 * 24)))}d`
       : "—",
   };
 };

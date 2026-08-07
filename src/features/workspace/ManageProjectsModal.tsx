@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Zap } from "lucide-react";
+import Pencil from "lucide-react/dist/esm/icons/pencil";
+import Trash2 from "lucide-react/dist/esm/icons/trash-2";
+import Plus from "lucide-react/dist/esm/icons/plus";
+import Zap from "lucide-react/dist/esm/icons/zap";
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -30,6 +33,7 @@ export const ManageProjectsModal = ({
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleCreate = () => {
     const trimmed = newName.trim();
@@ -61,10 +65,16 @@ export const ManageProjectsModal = ({
     setEditingId(null);
   };
 
-  const handleDelete = (projectId: string) => {
-    onDeleteProject(projectId);
-    setConfirmDelete(null);
-    if (editingId === projectId) setEditingId(null);
+  // M4: Await delete before clearing confirm state
+  const handleDelete = async (projectId: string) => {
+    setDeleting(true);
+    try {
+      await onDeleteProject(projectId);
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(null);
+      if (editingId === projectId) setEditingId(null);
+    }
   };
 
   const hasRunTheProd = projects.some((p) => p.slug === "run-the-prod");
@@ -141,13 +151,15 @@ export const ManageProjectsModal = ({
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleDelete(project.id)}
+                      disabled={deleting}
                       className="bg-rose-600 hover:bg-rose-500 text-xs px-3 py-1"
                     >
-                      Yes, delete
+                      {deleting ? "Deleting..." : "Yes, delete"}
                     </Button>
                     <Button
                       variant="secondary"
                       onClick={() => setConfirmDelete(null)}
+                      disabled={deleting}
                       className="text-xs px-3 py-1"
                     >
                       Cancel

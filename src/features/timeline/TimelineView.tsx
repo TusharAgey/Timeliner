@@ -1,11 +1,13 @@
 import {
   differenceInCalendarDays,
+  format,
   formatDistanceToNowStrict,
   isBefore,
   startOfWeek,
 } from "date-fns";
-import { useCallback, useMemo, useState } from "react";
-import { fullDate, today } from "../../lib/date";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fullDate, iso, today as todayFn } from "../../lib/date";
 import { computeTaskStatus } from "../../lib/status";
 import type { Milestone, Person, Project, Task } from "../../models/types";
 import { TaskCard } from "./TaskCard";
@@ -33,13 +35,13 @@ const zoomScale: Record<TimelineZoom, number> = {
 };
 
 const weekKey = (date: Date) =>
-  startOfWeek(date, { weekStartsOn: 1 }).toISOString().slice(0, 10);
+  format(startOfWeek(date, { weekStartsOn: 1 }), "yyyy-MM-dd");
 
 const weekStartTime = (key: string) => new Date(`${key}T00:00:00`).getTime();
 
 const formatMarkerLabel = (offset: number) => {
   if (offset === 0) return "Today";
-  const targetDate = new Date(today());
+  const targetDate = new Date(todayFn());
   targetDate.setDate(targetDate.getDate() + offset);
   if (Math.abs(offset) <= 7) {
     return offset > 0
@@ -75,28 +77,62 @@ export const TimelineView = ({
 }: TimelineViewProps) => {
   const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const currentDay = today();
+  const currentDay = todayFn();
   const allTasks = useMemo(() => projects.flatMap((p) => p.tasks), [projects]);
-  const measureCard = useCallback(
-    (taskId: string) => (node: HTMLDivElement | null) => {
-      if (!node) return undefined;
+
+  // M2: Use a ref-based map for observers to avoid churn on every render.
+  // The per-task ref callback is cached in a ref map so its identity stays
+  // stable across renders. Without this, `ref={measureCard(task.id)}` would
+  // create a fresh function each render, causing React to disconnect and
+  // recreate the ResizeObserver on every re-render.
+  const observersRef = useRef<Map<string, ResizeObserver>>(new Map());
+  const refCallbacksRef = useRef<
+    Map<string, (node: HTMLDivElement | null) => void>
+  >(new Map());
+
+  const measureCard = useCallback((taskId: string) => {
+    const cached = refCallbacksRef.current.get(taskId);
+    if (cached) return cached;
+
+    const callback = (node: HTMLDivElement | null) => {
+      // Disconnect previous observer for this task ID
+      const prev = observersRef.current.get(taskId);
+      if (prev) prev.disconnect();
+
+      if (!node) {
+        observersRef.current.delete(taskId);
+        return;
+      }
 
       const updateHeight = () => {
         const nextHeight = Math.ceil(node.getBoundingClientRect().height);
-        setCardHeights((current) =>
-          current[taskId] === nextHeight
-            ? current
-            : { ...current, [taskId]: nextHeight },
-        );
+        if (nextHeight > 0) {
+          setCardHeights((current) =>
+            current[taskId] === nextHeight
+              ? current
+              : { ...current, [taskId]: nextHeight },
+          );
+        }
       };
 
       updateHeight();
       const observer = new ResizeObserver(updateHeight);
       observer.observe(node);
-      return () => observer.disconnect();
-    },
-    [],
-  );
+      observersRef.current.set(taskId, observer);
+    };
+
+    refCallbacksRef.current.set(taskId, callback);
+    return callback;
+  }, []);
+
+  // Cleanup observers on unmount
+  useEffect(() => {
+    const map = observersRef.current;
+    return () => {
+      map.forEach((obs) => obs.disconnect());
+      map.clear();
+    };
+  }, []);
 
   const lanes = useMemo(
     () =>
@@ -108,24 +144,21 @@ export const TimelineView = ({
     [projects],
   );
 
+  /* M1: Use iso(today()) for local timezone consistency */
+  const todayStr = iso(currentDay);
+
   const filterTask = useCallback(
     (task: Task) => {
       const status = computeTaskStatus(task);
-      // Apply timeline filter first
       if (filter === "overdue" && status !== "Overdue") return false;
       if (filter === "atRisk" && status !== "At Risk" && status !== "Delayed")
         return false;
-      if (
-        filter === "startsToday" &&
-        task.startDate !== currentDay.toISOString().slice(0, 10)
-      )
-        return false;
-      // Apply priority filter (independent of timeline filter)
+      if (filter === "startsToday" && task.startDate !== todayStr) return false;
       if (priorityFilter !== "all" && task.priority !== priorityFilter)
         return false;
       return true;
     },
-    [filter, priorityFilter, currentDay],
+    [filter, priorityFilter, todayStr],
   );
 
   const items = useMemo(
@@ -254,22 +287,31 @@ export const TimelineView = ({
     };
   }, [leftItems, rightItems, baseTodayY, markers, totalHeight]);
 
+  // M3: Close one inline edit when another opens
+  const handleEditingChange = useCallback(
+    (taskId: string) => (editing: boolean) => {
+      if (editing) {
+        setEditingTaskId(taskId);
+      } else if (editingTaskId === taskId) {
+        setEditingTaskId(null);
+      }
+    },
+    [editingTaskId],
+  );
+
   return (
     <div className="relative h-full overflow-auto scroll-smooth">
       <div
         className="relative min-w-[900px] overflow-x-hidden pb-12"
         style={{ height: renderedHeight }}
       >
-        {/* Vertical timeline bar — rendered outside the grid so it spans full height */}
         <div className="pointer-events-none absolute inset-y-0 left-1/2 z-10 w-px -translate-x-1/2 bg-gradient-to-b from-white/10 via-white/10 to-white/10" />
 
-        {/* Today glow */}
         <div
           className="pointer-events-none absolute inset-x-0 z-[1] bg-cyan-300/[0.035] shadow-[0_0_80px_rgba(34,211,238,0.06)]"
           style={{ top: todayY - scale * 3, height: scale * 6 }}
         />
 
-        {/* Week marker rows — subtle horizontal guides */}
         <div className="pointer-events-none absolute inset-0 z-[1]">
           {shiftedMarkers.map((marker) => {
             const markerDate = new Date(currentDay);
@@ -290,7 +332,6 @@ export const TimelineView = ({
           })}
         </div>
 
-        {/* Today line */}
         <div
           className="pointer-events-none absolute inset-x-0 z-30"
           style={{ top: todayY }}
@@ -303,7 +344,6 @@ export const TimelineView = ({
           </div>
         </div>
 
-        {/* Axis markers (labels + dots) — positioned over the vertical bar */}
         <div className="pointer-events-none absolute inset-0 z-10">
           {shiftedMarkers.map((marker) => (
             <div
@@ -331,13 +371,15 @@ export const TimelineView = ({
             </div>
           ))}
           <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-[#0f1b2d]/90 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-500 ring-1 ring-white/8">
-            {fullDate(new Date().toISOString().slice(0, 10))}
+            {fullDate(todayStr)}
           </div>
         </div>
 
-        {/* Card grid */}
         <div className="grid grid-cols-[minmax(0,1fr)_0_minmax(0,1fr)]">
           <div className="relative z-20" style={{ marginRight: AXIS_GUTTER }}>
+            {/* eslint-disable-next-line react-hooks/refs -- measureCard reads
+                the ref cache during render to return a stable ref callback
+                (see M2); this is the documented exception. */}
             {shiftedLeftItems.map((item) => {
               return (
                 <div
@@ -357,9 +399,7 @@ export const TimelineView = ({
                     onDelete={(taskId) =>
                       onDeleteTask(item.lane.project.id, taskId)
                     }
-                    onEditingChange={(editing) =>
-                      setEditingTaskId(editing ? item.task.id : null)
-                    }
+                    onEditingChange={handleEditingChange(item.task.id)}
                   />
                 </div>
               );
@@ -369,6 +409,9 @@ export const TimelineView = ({
           <div className="relative z-10" style={{ width: AXIS_WIDTH }} />
 
           <div className="relative z-20" style={{ marginLeft: AXIS_GUTTER }}>
+            {/* eslint-disable-next-line react-hooks/refs -- measureCard reads
+                the ref cache during render to return a stable ref callback
+                (see M2); this is the documented exception. */}
             {shiftedRightItems.map((item) => {
               return (
                 <div
@@ -388,9 +431,7 @@ export const TimelineView = ({
                     onDelete={(taskId) =>
                       onDeleteTask(item.lane.project.id, taskId)
                     }
-                    onEditingChange={(editing) =>
-                      setEditingTaskId(editing ? item.task.id : null)
-                    }
+                    onEditingChange={handleEditingChange(item.task.id)}
                   />
                 </div>
               );

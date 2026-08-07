@@ -1,5 +1,7 @@
 import { useRef } from "react";
-import { Download, Upload } from "lucide-react";
+import Download from "lucide-react/dist/esm/icons/download";
+import Upload from "lucide-react/dist/esm/icons/upload";
+
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 

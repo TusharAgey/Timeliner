@@ -79,6 +79,23 @@ describe("getAssigneeHistory", () => {
     expect(history[0].name).toBe("Alice");
   });
 
+  it("preserves non-responsible roles (Bug 8)", () => {
+    // The runtime data may carry a non-"responsible" role (e.g. from legacy
+    // imports). getAssigneeHistory must preserve it rather than overwriting.
+    const task = baseTask({
+      assignees: [
+        {
+          name: "Alice",
+          role: "accountable" as "responsible",
+          from: "2026-01-01",
+          to: null,
+        },
+      ],
+    });
+    const history = getAssigneeHistory(task);
+    expect(history[0].role).toBe("accountable");
+  });
+
   it("falls back to legacy assignee field", () => {
     const task = {
       ...baseTask(),

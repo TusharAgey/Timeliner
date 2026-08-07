@@ -1,11 +1,10 @@
 import { useMemo } from "react";
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  Flag,
-  TrendingUp,
-} from "lucide-react";
+import Activity from "lucide-react/dist/esm/icons/activity";
+import AlertTriangle from "lucide-react/dist/esm/icons/alert-triangle";
+import CheckCircle2 from "lucide-react/dist/esm/icons/check-circle-2";
+import Flag from "lucide-react/dist/esm/icons/flag";
+import TrendingUp from "lucide-react/dist/esm/icons/trending-up";
+
 import { Modal } from "../../components/ui/Modal";
 import { computeProjectIntelligenceSummary } from "../../lib/summary";
 import type { MilestoneInsight } from "../../lib/summary";

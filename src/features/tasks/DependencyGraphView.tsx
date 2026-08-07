@@ -1,5 +1,9 @@
 import { useMemo, useState, useCallback } from "react";
-import { X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import X from "lucide-react/dist/esm/icons/x";
+import ZoomIn from "lucide-react/dist/esm/icons/zoom-in";
+import ZoomOut from "lucide-react/dist/esm/icons/zoom-out";
+import RotateCcw from "lucide-react/dist/esm/icons/rotate-ccw";
+
 import { Button } from "../../components/ui/Button";
 import { buildGraph, type GraphNode } from "../../lib/dependencyGraph";
 import type { Project } from "../../models/types";

@@ -304,4 +304,146 @@ describe("TaskCard", () => {
     );
     expect(screen.getByText("Jira")).toBeInTheDocument();
   });
+
+  it("leaves empty expected dates untouched when +1d is clicked", async () => {
+    const onSave = vi.fn();
+    const task = makeTask({
+      expectedStartDate: "",
+      expectedEndDate: "",
+    });
+    render(
+      <TaskCard
+        task={task}
+        people={people}
+        milestones={milestones}
+        allTasks={[]}
+        onSave={onSave}
+        onDelete={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByText("+1d"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDate: "2026-05-02",
+        endDate: "2026-05-16",
+        expectedStartDate: "",
+        expectedEndDate: "",
+      }),
+    );
+  });
+
+  it("shifts all four date fields by one day when +1d is clicked", async () => {
+    const onSave = vi.fn();
+    render(
+      <TaskCard
+        task={makeTask()}
+        people={people}
+        milestones={milestones}
+        allTasks={[]}
+        onSave={onSave}
+        onDelete={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByText("+1d"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDate: "2026-05-02",
+        endDate: "2026-05-16",
+        expectedStartDate: "2026-05-02",
+        expectedEndDate: "2026-05-16",
+      }),
+    );
+  });
+
+  it("does not open inline edit when Enter is pressed on a child button", async () => {
+    render(
+      <TaskCard
+        task={makeTask()}
+        people={people}
+        milestones={milestones}
+        allTasks={[]}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    const deleteButton = screen.getByRole("button", { name: /delete task/i });
+    deleteButton.focus();
+    await userEvent.keyboard("{Enter}");
+    // Inline edit should not be open (no Save button, no Cancel button)
+    expect(screen.queryByText("Save")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cancel")).not.toBeInTheDocument();
+  });
+
+  it("opens inline edit when Enter is pressed on the card itself", async () => {
+    render(
+      <TaskCard
+        task={makeTask()}
+        people={people}
+        milestones={milestones}
+        allTasks={[]}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    // The article is the card with role="button" and tabIndex={0}; the delete
+    // button also matches the name pattern, so select the article explicitly.
+    const card = screen
+      .getAllByRole("button", { name: /task: design login page/i })
+      .find((el) => el.tagName === "ARTICLE");
+    expect(card).toBeDefined();
+    card!.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByText("Save")).toBeInTheDocument();
+  });
+
+  it("syncs the draft when the task prop changes (H1)", async () => {
+    const onSave = vi.fn();
+    const { rerender } = render(
+      <TaskCard
+        task={makeTask()}
+        people={people}
+        milestones={milestones}
+        allTasks={[]}
+        onSave={onSave}
+        onDelete={vi.fn()}
+      />,
+    );
+    // Open inline edit
+    await userEvent.click(screen.getByText("Edit inline"));
+    // Rerender with an updated task (e.g. after a quick-action save)
+    rerender(
+      <TaskCard
+        task={makeTask({ title: "Updated title", progressPercent: 60 })}
+        people={people}
+        milestones={milestones}
+        allTasks={[]}
+        onSave={onSave}
+        onDelete={vi.fn()}
+      />,
+    );
+    // Save should reflect the updated draft
+    await userEvent.click(screen.getByText("Save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Updated title", progressPercent: 60 }),
+    );
+  });
+
+  it("saves the draft without injecting a computed status", async () => {
+    const onSave = vi.fn();
+    render(
+      <TaskCard
+        task={makeTask()}
+        people={people}
+        milestones={milestones}
+        allTasks={[]}
+        onSave={onSave}
+        onDelete={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByText("Edit inline"));
+    await userEvent.click(screen.getByText("Save"));
+    const saved = onSave.mock.calls[0][0] as Task;
+    // The saved task should preserve the original status field, not a recomputed one
+    expect(saved.status).toBe("On Track");
+  });
 });

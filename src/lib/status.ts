@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, isAfter, isBefore } from "date-fns";
+import { differenceInCalendarDays, isAfter, isBefore, isValid } from "date-fns";
 import { parseDate, today } from "./date";
 import type { Task, TaskStatus } from "../models/types";
 
@@ -8,8 +8,22 @@ export const computeTaskStatus = (task: Task): TaskStatus => {
   const now = today();
   const start = parseDate(task.startDate);
   const end = parseDate(task.endDate);
-  const expectedStart = parseDate(task.expectedStartDate);
-  const expectedEnd = parseDate(task.expectedEndDate);
+  const rawExpectedStart = parseDate(task.expectedStartDate);
+  const rawExpectedEnd = parseDate(task.expectedEndDate);
+  const expectedStart = isValid(rawExpectedStart) ? rawExpectedStart : start;
+  const expectedEnd = isValid(rawExpectedEnd) ? rawExpectedEnd : end;
+
+  // M7: If both expected and actual dates are invalid/empty, we cannot
+  // compute a meaningful status. Fall back to "Not Started" when there is
+  // no progress, otherwise "On Track" (no schedule to compare against).
+  const hasAnyDate =
+    isValid(start) ||
+    isValid(end) ||
+    isValid(expectedStart) ||
+    isValid(expectedEnd);
+  if (!hasAnyDate) {
+    return task.progressPercent === 0 ? "Not Started" : "On Track";
+  }
 
   if (isBefore(now, start) && task.progressPercent === 0) return "Not Started";
   if (task.blockedReason.trim()) return "At Risk";

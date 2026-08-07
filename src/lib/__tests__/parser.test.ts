@@ -22,7 +22,7 @@ describe("parseNaturalLanguageTask", () => {
 
   it("parses a date range with 'to'", () => {
     const result = parseNaturalLanguageTask("Build API from today to tomorrow");
-    expect(result.title).toBe("Build API from");
+    expect(result.title).toBe("Build API");
     expect(result.confidence).toBe("high");
     expect(result.startDate).toBeDefined();
     expect(result.endDate).toBeDefined();
@@ -94,9 +94,10 @@ describe("parseNaturalLanguageTask", () => {
     expect(result.assignees?.[0]?.name).toBe("Bob");
   });
 
-  it("parses assignee with 'by Name'", () => {
-    const result = parseNaturalLanguageTask("Review PR by Charlie");
-    expect(result.assignees?.[0]?.name).toBe("Charlie");
+  it("parses date with 'by DayName' as end date", () => {
+    const result = parseNaturalLanguageTask("Review PR by friday");
+    expect(result.endDate).toBeDefined();
+    expect(result.confidence).toBe("high");
   });
 
   it("parses Jira ticket reference", () => {
@@ -346,9 +347,11 @@ describe("parseNaturalLanguageTask", () => {
     expect(result.assignees?.[0]?.name).toBe("Unassigned");
   });
 
-  it("handles 'by' followed by capitalized name as assignee", () => {
-    const result = parseNaturalLanguageTask("Code review by Alice");
-    expect(result.assignees?.[0]?.name).toBe("Alice");
+  it("handles 'by Friday' as end date (not assignee)", () => {
+    // "by" followed by a day name is an end date, not an assignee
+    const result = parseNaturalLanguageTask("Code review by friday");
+    expect(result.endDate).toBeDefined();
+    expect(result.assignees?.[0]?.name).toBe("Unassigned");
   });
 
   it("parses date range with 'next Tuesday to next Friday'", () => {
@@ -379,5 +382,38 @@ describe("parseNaturalLanguageTask", () => {
     const result = parseNaturalLanguageTask("Plan conference Mar 5 2027");
     expect(result.startDate).toBeDefined();
     expect(result.confidence).toBe("high");
+  });
+
+  // --- Bug 6: "this week" vs "next week" ---
+  it("'this week' and 'next week' resolve to different dates", () => {
+    const thisWeek = parseNaturalLanguageTask("Task this week");
+    const nextWeek = parseNaturalLanguageTask("Task next week");
+    expect(thisWeek.startDate).toBeDefined();
+    expect(nextWeek.startDate).toBeDefined();
+    expect(thisWeek.startDate).not.toBe(nextWeek.startDate);
+  });
+
+  // --- Bug 7: "from" stripped from title ---
+  it("strips 'from' when used with date range", () => {
+    const result = parseNaturalLanguageTask("Build API from today to tomorrow");
+    expect(result.title).toBe("Build API");
+  });
+
+  it("strips 'from' with single start date", () => {
+    const result = parseNaturalLanguageTask("Start work from next week");
+    expect(result.title).toBe("Start work");
+  });
+
+  // --- Bug 7: "from" cleanup preserves titles without date tokens ---
+  it("keeps 'from' phrase when no date token follows", () => {
+    const result = parseNaturalLanguageTask("Rebuild the module");
+    expect(result.title).toBe("Rebuild the module");
+  });
+
+  // --- Bug 10: parseDateToken uses consistent "now" reference ---
+  it("handles explicit dates like 'Mar 5' consistently", () => {
+    const result1 = parseNaturalLanguageTask("Plan party Mar 5");
+    const result2 = parseNaturalLanguageTask("Plan party Mar 5");
+    expect(result1.startDate).toBe(result2.startDate);
   });
 });

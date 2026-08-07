@@ -1,13 +1,11 @@
 import { useState } from "react";
-import {
-  Flag,
-  Plus,
-  Trash2,
-  Pencil,
-  X,
-  Check,
-  ChevronDown,
-} from "lucide-react";
+import Flag from "lucide-react/dist/esm/icons/flag";
+import Plus from "lucide-react/dist/esm/icons/plus";
+import Trash2 from "lucide-react/dist/esm/icons/trash-2";
+import Pencil from "lucide-react/dist/esm/icons/pencil";
+import X from "lucide-react/dist/esm/icons/x";
+import Check from "lucide-react/dist/esm/icons/check";
+import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -50,6 +48,8 @@ export const MilestoneModal = ({
   const [editDescription, setEditDescription] = useState("");
   const [editColor, setEditColor] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  /* L2: Confirmation state for milestone deletion */
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const effectiveProjectId =
     selectedProjectId && projects.some((p) => p.id === selectedProjectId)
@@ -267,6 +267,32 @@ export const MilestoneModal = ({
                         </div>
                       </div>
                     </div>
+                  ) : confirmDeleteId === milestone.id ? (
+                    /* L2: Confirmation step before deleting a milestone */
+                    <div className="space-y-2">
+                      <p className="text-sm text-rose-300">
+                        Delete "{milestone.title}"? All linked tasks will lose
+                        their milestone reference.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            onDeleteMilestone(project.id, milestone.id);
+                            setConfirmDeleteId(null);
+                          }}
+                          className="bg-rose-600 hover:bg-rose-500 text-xs px-3 py-1"
+                        >
+                          Yes, delete
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="text-xs px-3 py-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
                   ) : (
                     <>
                       <div className="flex items-start justify-between">
@@ -283,14 +309,17 @@ export const MilestoneModal = ({
                               {milestone.title}
                             </h4>
                             <p className="text-xs text-slate-400">
-                              {new Date(
-                                milestone.date + "T00:00:00",
-                              ).toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })}
+                              {milestone.date
+                                ? new Date(
+                                    milestone.date + "T00:00:00",
+                                  ).toLocaleDateString(undefined, {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  })
+                                : "No date"}
                             </p>
+
                             {milestone.description ? (
                               <p className="mt-1 text-xs text-slate-500">
                                 {milestone.description}
@@ -307,9 +336,7 @@ export const MilestoneModal = ({
                             <Pencil className="size-3.5" />
                           </button>
                           <button
-                            onClick={() =>
-                              onDeleteMilestone(project.id, milestone.id)
-                            }
+                            onClick={() => setConfirmDeleteId(milestone.id)}
                             className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/8 hover:text-rose-400"
                             aria-label={`Delete ${milestone.title}`}
                           >

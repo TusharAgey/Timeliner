@@ -167,6 +167,52 @@ describe("computeTaskStatus", () => {
       ),
     ).toBe("Delayed");
   });
+
+  it("returns Not Started when all dates are empty and no progress (M7/N1)", () => {
+    expect(
+      computeTaskStatus(
+        makeTask({
+          startDate: "",
+          endDate: "",
+          expectedStartDate: "",
+          expectedEndDate: "",
+          progressPercent: 0,
+        }),
+      ),
+    ).toBe("Not Started");
+  });
+
+  it("returns On Track when all dates are empty but there is progress (M7/N1)", () => {
+    expect(
+      computeTaskStatus(
+        makeTask({
+          startDate: "",
+          endDate: "",
+          expectedStartDate: "",
+          expectedEndDate: "",
+          progressPercent: 50,
+        }),
+      ),
+    ).toBe("On Track");
+  });
+
+  it("falls back to actual dates when expected dates are invalid", () => {
+    const pastEnd = new Date();
+    pastEnd.setDate(pastEnd.getDate() - 5);
+    const pastEndStr = pastEnd.toISOString().slice(0, 10);
+    // Expected dates invalid -> fall back to actual dates -> past end => Overdue
+    expect(
+      computeTaskStatus(
+        makeTask({
+          startDate: "2026-01-01",
+          endDate: pastEndStr,
+          expectedStartDate: "invalid",
+          expectedEndDate: "invalid",
+          progressPercent: 50,
+        }),
+      ),
+    ).toBe("Overdue");
+  });
 });
 
 describe("statusTone", () => {
