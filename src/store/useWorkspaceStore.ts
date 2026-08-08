@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { z } from "zod";
 import { toast } from "sonner";
 import { createSeedWorkspace } from "../services/seedData";
 import {
@@ -30,12 +29,6 @@ import type {
   ActivityLogEntry,
   TaskTemplate,
   CrossProjectDependency,
-} from "../models/types";
-import {
-  workspaceSchema,
-  projectSchema,
-  personSchema,
-  labelSchema,
 } from "../models/types";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -943,17 +936,21 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     },
-    /* H3: Validate all imported data with Zod schemas */
+    /* H3: Validate all imported data with Zod schemas (lazy-loaded) */
     importWorkspace: async (file) => {
       try {
         const text = await file.text();
         const parsed = JSON.parse(text);
+        // Dynamically import zod schemas only when importing — keeps zod out
+        // of the initial bundle.
+        const { workspaceSchema, projectSchema, personSchema, labelSchema } =
+          await import("../models/schemas");
         const validated = workspaceSchema.parse(parsed.workspace);
         const data: WorkspaceData = {
           workspace: validated,
-          projects: z.array(projectSchema).parse(parsed.projects ?? []),
-          people: z.array(personSchema).parse(parsed.people ?? []),
-          labels: z.array(labelSchema).parse(parsed.labels ?? []),
+          projects: projectSchema.array().parse(parsed.projects ?? []),
+          people: personSchema.array().parse(parsed.people ?? []),
+          labels: labelSchema.array().parse(parsed.labels ?? []),
         };
         const next = withComputedStatuses(data);
         const firstTab = next.workspace.tabs[0];

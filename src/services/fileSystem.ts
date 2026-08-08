@@ -1,14 +1,10 @@
 import { del, get, set } from "idb-keyval";
-import {
-  labelSchema,
-  personSchema,
-  projectSchema,
-  workspaceSchema,
-  type Label,
-  type Person,
-  type Project,
-  type Workspace,
-  type WorkspaceData,
+import type {
+  Label,
+  Person,
+  Project,
+  Workspace,
+  WorkspaceData,
 } from "../models/types";
 
 const HANDLE_KEY = "timeliner.workspace-handle";
@@ -147,6 +143,10 @@ export const loadWorkspaceFromHandle = async (
   const lookupsDir = await handle.getDirectoryHandle("lookups", {
     create: true,
   });
+  // Dynamically import zod schemas only when loading a workspace — keeps zod
+  // out of the initial bundle.
+  const { workspaceSchema, personSchema, labelSchema, projectSchema } =
+    await import("../models/schemas");
   const workspace = await readJson<Workspace>(
     handle,
     WORKSPACE_FILE,

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import BarChart3 from "lucide-react/dist/esm/icons/bar-chart-3";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
@@ -117,6 +117,7 @@ export const TimelinerPage = () => {
     new Set(),
   );
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const {
     data,
@@ -185,6 +186,27 @@ export const TimelinerPage = () => {
     const timeout = window.setTimeout(() => clearRecentlyDeletedTask(), 8000);
     return () => window.clearTimeout(timeout);
   }, [recentlyDeletedTask, clearRecentlyDeletedTask]);
+
+  // Close the header menu on outside click or Escape
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
 
   const visibleProjects = useMemo(() => {
     const current = visibleProjectIds
@@ -310,7 +332,7 @@ export const TimelinerPage = () => {
               <Plus className="size-4" />
               Add Task
             </Button>
-            <div className="relative">
+            <div ref={menuRef} className="relative">
               <Button
                 variant="secondary"
                 className="rounded-full px-3"

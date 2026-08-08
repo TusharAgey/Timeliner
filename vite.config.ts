@@ -81,4 +81,38 @@ export default defineConfig({
     }),
   ],
   base: "/Timeliner/",
+  build: {
+    target: "es2020",
+    cssCodeSplit: true,
+    sourcemap: false,
+    minify: "esbuild",
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Split React into its own chunk for better caching
+          if (
+            id.includes("node_modules/react") ||
+            id.includes("node_modules/react-dom")
+          ) {
+            return "react";
+          }
+          // Split date-fns into its own chunk
+          if (id.includes("node_modules/date-fns")) {
+            return "date-fns";
+          }
+          // Split state management + toast into their own chunk
+          if (
+            id.includes("node_modules/zustand") ||
+            id.includes("node_modules/sonner")
+          ) {
+            return "state-ui";
+          }
+          // Split idb-keyval into its own chunk
+          if (id.includes("node_modules/idb-keyval")) {
+            return "idb-keyval";
+          }
+        },
+      },
+    },
+  },
 });

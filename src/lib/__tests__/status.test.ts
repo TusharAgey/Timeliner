@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeTaskStatus, statusTone } from "../status";
+import { iso } from "../date";
 import type { Task } from "../../models/types";
 
 const makeTask = (overrides: Partial<Task> = {}): Task => ({
@@ -46,8 +47,8 @@ describe("computeTaskStatus", () => {
     expect(
       computeTaskStatus(
         makeTask({
-          startDate: futureStart.toISOString().slice(0, 10),
-          endDate: futureEnd.toISOString().slice(0, 10),
+          startDate: iso(futureStart),
+          endDate: iso(futureEnd),
           progressPercent: 0,
         }),
       ),
@@ -60,7 +61,7 @@ describe("computeTaskStatus", () => {
     expect(
       computeTaskStatus(
         makeTask({
-          endDate: pastEnd.toISOString().slice(0, 10),
+          endDate: iso(pastEnd),
           progressPercent: 50,
         }),
       ),
@@ -83,10 +84,10 @@ describe("computeTaskStatus", () => {
     expect(
       computeTaskStatus(
         makeTask({
-          startDate: start.toISOString().slice(0, 10),
-          endDate: end.toISOString().slice(0, 10),
-          expectedStartDate: start.toISOString().slice(0, 10),
-          expectedEndDate: end.toISOString().slice(0, 10),
+          startDate: iso(start),
+          endDate: iso(end),
+          expectedStartDate: iso(start),
+          expectedEndDate: iso(end),
           progressPercent: 70,
         }),
       ),
@@ -104,10 +105,10 @@ describe("computeTaskStatus", () => {
     expect(
       computeTaskStatus(
         makeTask({
-          startDate: start.toISOString().slice(0, 10),
-          endDate: end.toISOString().slice(0, 10),
-          expectedStartDate: start.toISOString().slice(0, 10),
-          expectedEndDate: end.toISOString().slice(0, 10),
+          startDate: iso(start),
+          endDate: iso(end),
+          expectedStartDate: iso(start),
+          expectedEndDate: iso(end),
           progressPercent: 20,
         }),
       ),
@@ -123,10 +124,10 @@ describe("computeTaskStatus", () => {
     expect(
       computeTaskStatus(
         makeTask({
-          startDate: start.toISOString().slice(0, 10),
-          endDate: end.toISOString().slice(0, 10),
-          expectedStartDate: start.toISOString().slice(0, 10),
-          expectedEndDate: end.toISOString().slice(0, 10),
+          startDate: iso(start),
+          endDate: iso(end),
+          expectedStartDate: iso(start),
+          expectedEndDate: iso(end),
           progressPercent: 35,
         }),
       ),
@@ -142,10 +143,10 @@ describe("computeTaskStatus", () => {
     expect(
       computeTaskStatus(
         makeTask({
-          startDate: start.toISOString().slice(0, 10),
-          endDate: end.toISOString().slice(0, 10),
-          expectedStartDate: start.toISOString().slice(0, 10),
-          expectedEndDate: end.toISOString().slice(0, 10),
+          startDate: iso(start),
+          endDate: iso(end),
+          expectedStartDate: iso(start),
+          expectedEndDate: iso(end),
           progressPercent: 45,
         }),
       ),
@@ -153,7 +154,7 @@ describe("computeTaskStatus", () => {
   });
 
   it("handles 1-day tasks correctly", () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = iso(new Date());
     // 1-day task, today, 0% progress => expected = 100%, delta = -100% => Delayed
     expect(
       computeTaskStatus(
@@ -199,7 +200,7 @@ describe("computeTaskStatus", () => {
   it("falls back to actual dates when expected dates are invalid", () => {
     const pastEnd = new Date();
     pastEnd.setDate(pastEnd.getDate() - 5);
-    const pastEndStr = pastEnd.toISOString().slice(0, 10);
+    const pastEndStr = iso(pastEnd);
     // Expected dates invalid -> fall back to actual dates -> past end => Overdue
     expect(
       computeTaskStatus(
