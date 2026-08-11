@@ -78,3 +78,46 @@ a {
   backdrop-filter: blur(18px);
   box-shadow: 0 20px 60px rgba(2, 8, 23, 0.35);
 }
+
+html[data-performance-mode="optimized"] *,
+html[data-performance-mode="optimized"] *::before,
+html[data-performance-mode="optimized"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+}
+
+html[data-performance-mode="optimized"] body {
+  background: #08111f;
+}
+
+html[data-performance-mode="optimized"] .animate-pulse {
+  animation: none !important;
+}
+
+html[data-performance-mode="optimized"] .glass,
+html[data-performance-mode="optimized"] [class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html[data-performance-mode="optimized"] [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+html[data-performance-mode="optimized"] svg {
+  filter: none !important;
+}
+
+html[data-performance-mode="optimized"] [role="dialog"][aria-modal="true"] {
+  background-color: rgba(2, 6, 23, 0.42) !important;
+}
+
+html[data-performance-mode="optimized"]
+  [role="dialog"][aria-modal="true"]
+  > div {
+  background-color: rgba(13, 23, 38, 0.88) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}

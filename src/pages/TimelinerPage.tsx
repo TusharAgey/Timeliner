@@ -110,7 +110,15 @@ const priorityFilterOptions: {
   { value: "Low", label: "Low", color: "bg-slate-500" },
 ];
 
-export const TimelinerPage = () => {
+type TimelinerPageProps = {
+  optimizedMode?: boolean;
+  onToggleOptimizedMode?: () => void;
+};
+
+export const TimelinerPage = ({
+  optimizedMode = false,
+  onToggleOptimizedMode,
+}: TimelinerPageProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
@@ -438,6 +446,18 @@ export const TimelinerPage = () => {
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
                   >
                     <Flag className="size-4" /> Milestones
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      onToggleOptimizedMode?.();
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/6"
+                    aria-pressed={optimizedMode}
+                  >
+                    <Settings className="size-4" /> Optimized mode:{" "}
+                    {optimizedMode ? "On" : "Off"}
                   </button>
                   <button
                     role="menuitem"
